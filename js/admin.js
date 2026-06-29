@@ -51,36 +51,29 @@
   function showPanel() {
     loginScreen.style.display = 'none';
     adminPanel.style.display = 'block';
-    loadData();
+    // Listen for real-time updates
+    onBlessingsChanged(function(blessings) {
+      updateStats(blessings);
+      renderList(blessings);
+    });
   }
 
-  function loadData() {
-    const blessings = getAllBlessings();
-    updateStats(blessings);
-    renderList(blessings);
-  }
-
-  function updateStats(blessings) {
+  async function updateStats(blessings) {
     statTotal.textContent = blessings.length;
 
-    // Today count
     const today = new Date().toDateString();
     const todayCount = blessings.filter(b => new Date(b.createdAt).toDateString() === today).length;
     statToday.textContent = todayCount;
 
-    // Storage
-    const usage = getStorageUsage();
+    const usage = await getStorageUsage();
     statStorage.textContent = usage.usedKB;
 
-    // Popular template
     if (blessings.length > 0) {
       const counts = {};
       blessings.forEach(b => {
         counts[b.templateId] = (counts[b.templateId] || 0) + 1;
       });
-      const topId = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-      const tpl = getTemplateById(parseInt(topId));
-      statPopular.textContent = tpl.name;
+      statPopular.textContent = blessings.length + ' ברכות';
       statPopular.style.fontSize = '0.9rem';
     } else {
       statPopular.textContent = '-';
@@ -99,11 +92,9 @@
     emptyAdmin.style.display = 'none';
     blessingsList.style.display = 'flex';
 
-    // Sort newest first
     const sorted = [...blessings].reverse();
 
     blessingsList.innerHTML = sorted.map(b => {
-      const tpl = getTemplateById(b.templateId);
       const date = b.createdAt ? new Date(b.createdAt).toLocaleDateString('he-IL', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
       }) : '';
@@ -117,7 +108,6 @@
             <div class="blessing-item-text">${text}</div>
             <div class="blessing-item-meta">${date}</div>
           </div>
-          <span class="blessing-item-template">${tpl.name}</span>
           <button class="blessing-item-delete" data-id="${b.id}" title="מחק">✕</button>
         </div>
       `;
@@ -135,7 +125,6 @@
 
     showConfirm(`למחוק את הברכה של ${name}?`, 'פעולה זו לא ניתנת לביטול', function() {
       deleteBlessing(id);
-      loadData();
     });
   });
 
@@ -150,11 +139,10 @@
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
-      const success = importDataFromJson(e.target.result);
+    reader.onload = async function(e) {
+      const success = await importDataFromJson(e.target.result);
       if (success) {
-        loadData();
-        showConfirm('הייבוא הושלם בהצלחה', `${getAllBlessings().length} ברכות נטענו`, null);
+        showConfirm('הייבוא הושלם בהצלחה', '', null);
       } else {
         showConfirm('שגיאה בייבוא', 'הקובץ אינו תקין', null);
       }
@@ -164,17 +152,15 @@
   });
 
   // Clear all
-  clearBtn.addEventListener('click', function() {
-    const count = getAllBlessings().length;
-    if (count === 0) return;
+  clearBtn.addEventListener('click', async function() {
+    const blessings = await getAllBlessings();
+    if (blessings.length === 0) return;
 
-    showConfirm(`למחוק את כל ${count} הברכות?`, 'פעולה זו לא ניתנת לביטול', function() {
+    showConfirm(`למחוק את כל ${blessings.length} הברכות?`, 'פעולה זו לא ניתנת לביטול', function() {
       clearAllBlessings();
-      loadData();
     });
   });
 
-  // Confirm dialog
   function showConfirm(title, message, onConfirm) {
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
@@ -205,11 +191,4 @@
       if (e.target === overlay) overlay.remove();
     });
   }
-
-  // Auto-refresh every 10 seconds
-  setInterval(function() {
-    if (adminPanel.style.display !== 'none') {
-      loadData();
-    }
-  }, 10000);
 })();

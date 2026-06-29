@@ -9,8 +9,8 @@
   const progressFill = document.getElementById('progress-fill');
   const progressText = document.getElementById('progress-text');
 
-  function init() {
-    const blessings = getAllBlessings();
+  async function init() {
+    const blessings = await getAllBlessings();
 
     if (blessings.length === 0) {
       cardsGrid.style.display = 'none';
@@ -30,7 +30,7 @@
 
   // Download PDF
   downloadBtn.addEventListener('click', async function() {
-    const blessings = getAllBlessings();
+    const blessings = await getAllBlessings();
     if (blessings.length === 0) return;
 
     const cardsPerPage = parseInt(layoutSelect.value);
@@ -43,16 +43,14 @@
     progressContainer.classList.add('active');
 
     // --- Cover Page ---
-    pdf.setFillColor(26, 39, 68); // navy
+    pdf.setFillColor(26, 39, 68);
     pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
-    // Gold border
     pdf.setDrawColor(212, 168, 83);
     pdf.setLineWidth(1);
     pdf.rect(10, 10, pageWidth - 20, pageHeight - 20);
     pdf.rect(14, 14, pageWidth - 28, pageHeight - 28);
 
-    // Title
     pdf.setFont('Helvetica', 'bold');
     pdf.setTextColor(212, 168, 83);
     pdf.setFontSize(36);
@@ -70,7 +68,6 @@
     pdf.setFontSize(14);
     pdf.text(`${blessings.length} ברכות מהלב`, pageWidth / 2, 180, { align: 'center' });
 
-    // Star of David symbol
     pdf.setFontSize(60);
     pdf.setTextColor(212, 168, 83);
     pdf.text('✡', pageWidth / 2, 230, { align: 'center' });
@@ -82,7 +79,6 @@
     for (let i = 0; i < cards.length; i++) {
       updateProgress(i + 1, totalSteps);
 
-      // Capture card as canvas
       const canvas = await html2canvas(cards[i], {
         scale: 2,
         useCORS: true,
@@ -101,7 +97,6 @@
         const y = (pageHeight - cardHeight) / 2;
         pdf.addImage(imgData, 'JPEG', x, y, cardWidth, cardHeight);
       } else {
-        // 2 per page
         const posOnPage = i % 2;
         if (posOnPage === 0) pdf.addPage();
 
@@ -113,7 +108,6 @@
         pdf.addImage(imgData, 'JPEG', x, y, adjustedWidth, cardHeight);
       }
 
-      // Small delay to avoid freezing
       await new Promise(r => setTimeout(r, 50));
     }
 

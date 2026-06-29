@@ -12,7 +12,6 @@
   let swiper = null;
   let isPlaying = true;
   let currentSpeed = 6000;
-  let knownIds = new Set();
 
   const speeds = [
     { delay: 8000, label: 'איטית' },
@@ -21,27 +20,6 @@
     { delay: 2500, label: 'מהירה מאוד' },
   ];
   let speedIndex = 1;
-
-  function init() {
-    const blessings = getAllBlessings();
-    updateCount(blessings.length);
-
-    if (blessings.length === 0) {
-      swiperEl.style.display = 'none';
-      emptyState.style.display = 'block';
-    } else {
-      emptyState.style.display = 'none';
-      swiperEl.style.display = 'block';
-      blessings.forEach(b => {
-        addSlide(b);
-        knownIds.add(b.id);
-      });
-      initSwiper();
-    }
-
-    // Poll for new blessings
-    setInterval(checkForNewBlessings, 5000);
-  }
 
   function addSlide(blessing) {
     const slide = document.createElement('div');
@@ -65,30 +43,6 @@
     });
   }
 
-  function checkForNewBlessings() {
-    const blessings = getAllBlessings();
-    const newBlessings = blessings.filter(b => !knownIds.has(b.id));
-
-    if (newBlessings.length === 0) return;
-
-    newBlessings.forEach(b => {
-      knownIds.add(b.id);
-      addSlide(b);
-    });
-
-    updateCount(blessings.length);
-
-    if (!swiper) {
-      emptyState.style.display = 'none';
-      swiperEl.style.display = 'block';
-      initSwiper();
-    } else {
-      swiper.update();
-    }
-
-    showToast();
-  }
-
   function showToast() {
     newToast.classList.add('show');
     setTimeout(() => newToast.classList.remove('show'), 3000);
@@ -97,6 +51,42 @@
   function updateCount(count) {
     countBadge.textContent = `${count} ברכות`;
   }
+
+  // Real-time listener
+  let firstLoad = true;
+  let knownIds = new Set();
+
+  onBlessingsChanged(function(blessings) {
+    updateCount(blessings.length);
+
+    if (blessings.length === 0) {
+      swiperEl.style.display = 'none';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    swiperEl.style.display = 'block';
+
+    if (firstLoad) {
+      blessings.forEach(b => {
+        addSlide(b);
+        knownIds.add(b.id);
+      });
+      initSwiper();
+      firstLoad = false;
+    } else {
+      const newOnes = blessings.filter(b => !knownIds.has(b.id));
+      if (newOnes.length > 0) {
+        newOnes.forEach(b => {
+          knownIds.add(b.id);
+          addSlide(b);
+        });
+        if (swiper) swiper.update();
+        showToast();
+      }
+    }
+  });
 
   // Play/Pause
   playBtn.addEventListener('click', function() {
@@ -130,10 +120,10 @@
   fullscreenBtn.addEventListener('click', function() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
-      fullscreenBtn.textContent = '⛶ צא ממסך מלא';
+      fullscreenBtn.textContent = 'צא ממסך מלא';
     } else {
       document.exitFullscreen();
-      fullscreenBtn.textContent = '⛶ מסך מלא';
+      fullscreenBtn.textContent = 'מסך מלא';
     }
   });
 
@@ -144,6 +134,4 @@
       playBtn.click();
     }
   });
-
-  init();
 })();

@@ -1,34 +1,62 @@
-// ===== DATA STORAGE MODULE =====
-const STORAGE_KEY = 'hareli_blessings';
+// ===== DATA STORAGE MODULE — FIREBASE =====
+const BLESSINGS_REF = 'blessings';
 
+// Get all blessings (one-time read)
 function getAllBlessings() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (e) {
-    console.error('Error reading blessings:', e);
-    return [];
-  }
+  return new Promise((resolve) => {
+    db.ref(BLESSINGS_REF).once('value').then(snapshot => {
+      const data = snapshot.val();
+      if (!data) return resolve([]);
+      const arr = Object.keys(data).map(key => ({ ...data[key], id: key }));
+      arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+      resolve(arr);
+    }).catch(() => resolve([]));
+  });
 }
 
+// Save a new blessing
 function saveBlessing(blessing) {
-  const blessings = getAllBlessings();
-  blessing.id = crypto.randomUUID();
+  const ref = db.ref(BLESSINGS_REF).push();
+  blessing.id = ref.key;
   blessing.createdAt = new Date().toISOString();
-  blessings.push(blessing);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(blessings));
+  ref.set(blessing);
   return blessing;
 }
 
+// Delete a single blessing
 function deleteBlessing(id) {
-  const blessings = getAllBlessings().filter(b => b.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(blessings));
+  return db.ref(BLESSINGS_REF + '/' + id).remove();
 }
 
+// Clear all blessings
 function clearAllBlessings() {
-  localStorage.removeItem(STORAGE_KEY);
+  return db.ref(BLESSINGS_REF).remove();
 }
 
+// Listen for new blessings in real-time (returns unsubscribe function)
+function onNewBlessing(callback) {
+  const ref = db.ref(BLESSINGS_REF);
+  ref.limitToLast(1).on('child_added', snapshot => {
+    const blessing = { ...snapshot.val(), id: snapshot.key };
+    callback(blessing);
+  });
+  return () => ref.off('child_added');
+}
+
+// Listen for all changes in real-time
+function onBlessingsChanged(callback) {
+  const ref = db.ref(BLESSINGS_REF);
+  ref.on('value', snapshot => {
+    const data = snapshot.val();
+    if (!data) return callback([]);
+    const arr = Object.keys(data).map(key => ({ ...data[key], id: key }));
+    arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+    callback(arr);
+  });
+  return () => ref.off('value');
+}
+
+// Compress image before upload
 function compressImage(file, maxWidth = 1600, quality = 0.85) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,32 +90,41 @@ function compressImage(file, maxWidth = 1600, quality = 0.85) {
 }
 
 function getStorageUsage() {
-  const data = localStorage.getItem(STORAGE_KEY) || '';
-  const usedKB = Math.round(new Blob([data]).size / 1024);
-  return { usedKB, usedMB: (usedKB / 1024).toFixed(2) };
+  return getAllBlessings().then(blessings => {
+    const json = JSON.stringify(blessings);
+    const usedKB = Math.round(new Blob([json]).size / 1024);
+    return { usedKB, usedMB: (usedKB / 1024).toFixed(2) };
+  });
 }
 
 function exportDataAsJson() {
-  const blessings = getAllBlessings();
-  const blob = new Blob([JSON.stringify(blessings, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'blessings_backup.json';
-  a.click();
-  URL.revokeObjectURL(url);
+  getAllBlessings().then(blessings => {
+    const blob = new Blob([JSON.stringify(blessings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'blessings_backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 }
 
 function importDataFromJson(jsonString) {
   try {
     const data = JSON.parse(jsonString);
     if (Array.isArray(data)) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      return true;
+      // Clear and re-import
+      return clearAllBlessings().then(() => {
+        const promises = data.map(b => {
+          const ref = db.ref(BLESSINGS_REF).push();
+          b.id = ref.key;
+          return ref.set(b);
+        });
+        return Promise.all(promises).then(() => true);
+      });
     }
-    return false;
+    return Promise.resolve(false);
   } catch (e) {
-    console.error('Import error:', e);
-    return false;
+    return Promise.resolve(false);
   }
 }
