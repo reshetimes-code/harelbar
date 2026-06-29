@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>תצוגת דוגמה - הראלי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .demo-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      justify-content: center;
+      margin-top: 28px;
+      padding: 20px;
+      position: relative;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="event-header">
+    <span class="header-icon">✡</span>
+    <div class="decorative-line"></div>
+    <h1>תצוגת דוגמאות</h1>
+    <p class="subtitle">כך ייראו הברכות על המסך</p>
+    <div class="decorative-line"></div>
+  </header>
+
+  <div class="container" style="max-width: 800px; text-align: center; padding-top: 28px;">
+    <button class="btn btn-primary" id="add-demo" style="max-width: 320px; margin: 0 auto;">הוסיפו 5 ברכות דוגמה</button>
+    <p id="status" style="margin-top: 12px; color: var(--text-muted); font-size: 0.85rem;"></p>
+    <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a href="index.html" class="btn btn-secondary" style="width: auto; font-size: 0.85rem;">דף הברכות</a>
+      <a href="slideshow.html" class="btn btn-secondary" style="width: auto; font-size: 0.85rem;">מצגת</a>
+      <a href="book.html" class="btn btn-secondary" style="width: auto; font-size: 0.85rem;">ספר ברכות</a>
+    </div>
+  </div>
+
+  <div class="demo-grid" id="preview"></div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script>
+    function generateAvatar(name, bg1, bg2, textColor) {
+      const c = document.createElement('canvas');
+      c.width = 400; c.height = 400;
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 400, 400);
+      g.addColorStop(0, bg1);
+      g.addColorStop(1, bg2);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 400, 400);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.beginPath(); ctx.arc(300, 100, 120, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(80, 320, 80, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = textColor;
+      ctx.font = 'bold 170px Assistant, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(name.charAt(0), 200, 210);
+      return c.toDataURL('image/jpeg', 0.8);
+    }
+
+    const demos = [
+      {
+        name: 'דוד כהן',
+        text: 'הראלי היקר, מזל טוב גדול לרגל הבר מצווה! שתגדל לתורה, לחופה ולמעשים טובים. שהחיים יביאו לך שמחה, הצלחה ובריאות. גאים בך!',
+        templateId: 1, bg1: '#1a2744', bg2: '#0d1530', textColor: '#d4a853'
+      },
+      {
+        name: 'שרה לוי',
+        text: 'מזל טוב הראלי! היום אתה הופך לגבר צעיר ואנחנו יודעים שתהיה אדם מדהים. שתמיד תלך בדרך הישרה ותשמור על החיוך שלך. אוהבים!',
+        templateId: 1, bg1: '#8b6f47', bg2: '#6b5535', textColor: '#fff'
+      },
+      {
+        name: 'יוסי אברהם',
+        text: 'לכבוד בר המצווה, מאחלים לך עתיד מזהיר מלא בהצלחות ובשמחות. שתמשיך להיות הילד המיוחד והמוכשר שאתה. מזל טוב!',
+        templateId: 1, bg1: '#3d6b4f', bg2: '#2d5a3f', textColor: '#fff'
+      },
+      {
+        name: 'אורן',
+        text: 'היום אתה מציין רגע מיוחד ומשמעותי בחייך – יום בר המצווה. מאחלים לך שתמשיך לצמוח, ללמוד, להצליח ולהגשים כל חלום. מזל טוב!',
+        templateId: 1, bg1: '#4a7c7e', bg2: '#3a6668', textColor: '#fff'
+      },
+      {
+        name: 'רחלי ומשה',
+        text: 'הראלי המתוק, מזל טוב ליום המיוחד שלך! שתזכה לבריאות טובה, לאהבת המשפחה, ולהמון רגעים יפים. תמיד נהיה כאן בשבילך!',
+        templateId: 1, bg1: '#a07c2e', bg2: '#c9a84c', textColor: '#fff'
+      }
+    ];
+
+    const preview = document.getElementById('preview');
+    demos.forEach(d => {
+      const photo = generateAvatar(d.name, d.bg1, d.bg2, d.textColor);
+      const html = renderCard({ ...d, photoDataUrl: photo });
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html;
+      preview.appendChild(wrapper.firstElementChild);
+    });
+
+    document.getElementById('add-demo').addEventListener('click', function() {
+      clearAllBlessings();
+      demos.forEach(d => {
+        const photo = generateAvatar(d.name, d.bg1, d.bg2, d.textColor);
+        saveBlessing({ name: d.name, text: d.text, templateId: d.templateId, photoDataUrl: photo });
+      });
+      document.getElementById('status').innerHTML = '<span style="color: var(--gold-light); font-weight:500;">נוספו 5 ברכות בהצלחה</span>';
+      this.disabled = true;
+      this.style.opacity = '0.4';
+      this.textContent = 'הברכות נוספו';
+    });
+  </script>
+</body>
+</html>

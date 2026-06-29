@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ספר הברכות - בר המצווה של הראלי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+</head>
+<body class="book-page">
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Header -->
+  <div class="book-header">
+    <h1>ספר הברכות</h1>
+    <p class="subtitle">בר המצווה של הראלי</p>
+    <p class="stats" id="stats"></p>
+  </div>
+
+  <!-- Controls -->
+  <div class="book-controls">
+    <button class="btn btn-primary" id="download-btn" style="width: auto;">
+      הורד PDF
+    </button>
+    <select id="layout-select">
+      <option value="1">כרטיס אחד בעמוד</option>
+      <option value="2">שני כרטיסים בעמוד</option>
+    </select>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-container" id="progress-container">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <p class="progress-text" id="progress-text">מכין PDF...</p>
+  </div>
+
+  <!-- Cards Preview Grid -->
+  <div class="cards-grid" id="cards-grid"></div>
+
+  <!-- Empty -->
+  <div class="container" id="empty-book" style="display:none; text-align:center; padding: 80px 20px;">
+    <p style="font-size: 1.1rem; color: var(--text-muted);">אין ברכות עדיין</p>
+    <a href="index.html" class="btn btn-primary" style="margin-top: 20px; width: auto; display: inline-flex;">
+      חזור לדף הברכות
+    </a>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/book.js"></script>
+  <script src="js/confetti.js"></script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מסך מצגת - בר המצווה של הראלי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      cursor: none;
+    }
+
+    .screen-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    /* Current card - fullscreen */
+    .screen-card {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 1s ease;
+      z-index: 1;
+    }
+
+    .screen-card.active {
+      opacity: 1;
+      z-index: 2;
+    }
+
+    .screen-card .blessing-card {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Waiting state */
+    .waiting-screen {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #0a1020 0%, #0c1425 100%);
+      color: var(--gold-light);
+    }
+
+    .waiting-screen h1 {
+      font-family: 'Assistant', sans-serif;
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .waiting-screen p {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+    }
+
+    /* SweetAlert custom theme */
+    .swal2-popup.swal-blessing {
+      background: rgba(17, 28, 50, 0.95) !important;
+      border: 1px solid rgba(184,149,62,0.3) !important;
+      border-radius: 16px !important;
+      backdrop-filter: blur(12px);
+      color: #fff !important;
+    }
+
+    .swal2-title {
+      color: var(--gold-light) !important;
+      font-family: 'Assistant', sans-serif !important;
+      font-weight: 700 !important;
+    }
+
+    .swal2-html-container {
+      color: rgba(255,255,255,0.7) !important;
+      font-family: 'Assistant', sans-serif !important;
+    }
+
+    /* Show cursor on mouse move */
+    body.show-cursor { cursor: default; }
+  </style>
+</head>
+<body>
+
+  <div class="screen-container" id="screen">
+    <div class="waiting-screen" id="waiting">
+      <h1>ברכות לכבוד הראלי</h1>
+      <p>ממתינים לברכות...</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script>
+  (function() {
+    const screen = document.getElementById('screen');
+    const waiting = document.getElementById('waiting');
+
+    let blessings = [];
+    let knownIds = new Set();
+    let currentIndex = -1;
+    let cardA = null;
+    let cardB = null;
+    let activeCard = 'A';
+    const INTERVAL = 8000;
+
+    // Create two card slots for crossfade
+    function createSlot(id) {
+      const div = document.createElement('div');
+      div.className = 'screen-card';
+      div.id = id;
+      screen.appendChild(div);
+      return div;
+    }
+
+    cardA = createSlot('card-a');
+    cardB = createSlot('card-b');
+
+    function init() {
+      blessings = getAllBlessings();
+      blessings.forEach(b => knownIds.add(b.id));
+
+      if (blessings.length > 0) {
+        waiting.style.display = 'none';
+        currentIndex = 0;
+        showCard(blessings[0]);
+      }
+
+      // Auto advance
+      setInterval(nextCard, INTERVAL);
+
+      // Poll for new blessings
+      setInterval(checkNewBlessings, 3000);
+    }
+
+    function showCard(blessing) {
+      const html = renderCard(blessing);
+      const next = activeCard === 'A' ? cardB : cardA;
+      const current = activeCard === 'A' ? cardA : cardB;
+
+      next.innerHTML = html;
+
+      // Small delay to ensure DOM paint before transition
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          current.classList.remove('active');
+          next.classList.add('active');
+          activeCard = activeCard === 'A' ? 'B' : 'A';
+        });
+      });
+    }
+
+    function nextCard() {
+      if (blessings.length === 0) return;
+      currentIndex = (currentIndex + 1) % blessings.length;
+      showCard(blessings[currentIndex]);
+    }
+
+    function checkNewBlessings() {
+      const all = getAllBlessings();
+      const newOnes = all.filter(b => !knownIds.has(b.id));
+
+      if (newOnes.length === 0) return;
+
+      newOnes.forEach(b => {
+        knownIds.add(b.id);
+        blessings.push(b);
+      });
+
+      // Hide waiting if first blessings
+      if (waiting.style.display !== 'none') {
+        waiting.style.display = 'none';
+      }
+
+      // Show alert for the latest new blessing
+      const latest = newOnes[newOnes.length - 1];
+      showNewBlessingAlert(latest);
+
+      // Show the new blessing immediately as next
+      currentIndex = blessings.length - 1;
+      showCard(latest);
+    }
+
+    function showNewBlessingAlert(blessing) {
+      const name = blessing.name;
+
+      Swal.fire({
+        title: 'ברכה חדשה!',
+        html: `<strong>${name}</strong> שלח/ה ברכה`,
+        icon: 'none',
+        timer: 4000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+        position: 'top',
+        toast: true,
+        background: 'rgba(17, 28, 50, 0.95)',
+        customClass: {
+          popup: 'swal-blessing'
+        },
+        showClass: {
+          popup: 'swal2-show'
+        },
+        hideClass: {
+          popup: 'swal2-hide'
+        }
+      });
+    }
+
+    // Show cursor on mouse move, hide after 3s
+    let cursorTimer;
+    document.addEventListener('mousemove', () => {
+      document.body.classList.add('show-cursor');
+      clearTimeout(cursorTimer);
+      cursorTimer = setTimeout(() => {
+        document.body.classList.remove('show-cursor');
+      }, 3000);
+    });
+
+    // Keyboard: F for fullscreen, Space for next
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyF') {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen();
+        }
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        nextCard();
+      }
+    });
+
+    init();
+  })();
+  </script>
+</body>
+</html>

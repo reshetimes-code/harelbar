@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ברכות לבר המצווה של הראלי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✡</text></svg>">
+</head>
+<body>
+
+  <!-- CONFETTI CANVAS -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- HEADER -->
+  <header class="event-header">
+    <span class="header-icon">✡</span>
+    <div class="decorative-line"></div>
+    <h1>בר המצווה של הראלי</h1>
+    <p class="subtitle">השאירו ברכה מהלב</p>
+    <div class="decorative-line"></div>
+    <span class="header-badge">מזל טוב</span>
+  </header>
+
+  <!-- FORM -->
+  <main class="container" id="form-container">
+    <div class="form-section">
+      <form id="blessing-form" novalidate>
+
+        <div class="form-group" id="name-group">
+          <label for="guest-name">השם שלך</label>
+          <input type="text" id="guest-name" placeholder="הכנס את שמך המלא" required>
+          <span class="error-msg" id="name-error">נא להזין שם</span>
+        </div>
+
+        <div class="form-group" id="text-group">
+          <label for="blessing-text">הברכה שלך</label>
+          <textarea id="blessing-text" placeholder="כתוב כאן את הברכה שלך להראלי..." required></textarea>
+          <span class="error-msg" id="text-error">נא לכתוב ברכה</span>
+        </div>
+
+        <div class="form-group" id="photo-group">
+          <label>העלאת תמונה</label>
+          <div class="photo-upload-area" id="photo-area">
+            <input type="file" id="photo-input" accept="image/*">
+            <span class="upload-icon">📷</span>
+            <span class="upload-text">לחץ כאן להעלאת תמונה</span>
+          </div>
+          <span class="error-msg" id="photo-error">נא להעלות תמונה</span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          תצוגה מקדימה
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <!-- PREVIEW MODAL -->
+  <div class="modal-overlay" id="preview-modal">
+    <div class="modal-content">
+      <div id="card-preview"></div>
+      <div class="modal-actions">
+        <button class="btn btn-success" id="confirm-btn">שלחו ברכה</button>
+        <button class="btn btn-secondary" id="edit-btn">חזרו לעריכה</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS STATE -->
+  <div class="container">
+    <div class="success-state" id="success-state">
+      <span class="success-checkmark">✓</span>
+      <h2>הברכה נשלחה בהצלחה</h2>
+      <p>תודה רבה על הברכה החמה</p>
+      <button class="btn btn-primary" id="new-blessing-btn">שלחו ברכה נוספת</button>
+    </div>
+  </div>
+
+  <!-- ADMIN LINKS -->
+  <div class="admin-links">
+    <a href="slideshow.html">מצגת</a>
+    <a href="book.html">ספר ברכות</a>
+    <a href="admin.html">ניהול</a>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/guest.js"></script>
+  <script src="js/confetti.js"></script>
+</body>
+</html>

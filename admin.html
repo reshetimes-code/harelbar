@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>פאנל ניהול - בר המצווה של הראלי</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙</text></svg>">
+</head>
+<body>
+
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="admin-login">
+    <div class="login-card">
+      <div class="login-icon">⚙</div>
+      <h1>פאנל ניהול</h1>
+      <p>הכנס סיסמה כדי להמשיך</p>
+      <form id="login-form">
+        <input type="password" id="admin-password" placeholder="סיסמה" autocomplete="off">
+        <span class="error-msg" id="login-error">סיסמה שגויה</span>
+        <button type="submit" class="btn btn-primary">כניסה</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div id="admin-panel" style="display:none;">
+
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="admin-header-content">
+        <div>
+          <h1>פאנל ניהול</h1>
+          <p>בר המצווה של הראלי</p>
+        </div>
+        <div class="admin-header-actions">
+          <a href="index.html" class="btn btn-secondary btn-sm">דף הברכות</a>
+          <a href="slideshow.html" class="btn btn-secondary btn-sm">מצגת</a>
+          <a href="book.html" class="btn btn-secondary btn-sm">ספר ברכות</a>
+          <button class="btn btn-secondary btn-sm" id="logout-btn">התנתק</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="admin-container">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-number" id="stat-total">0</span>
+          <span class="stat-label">סה"כ ברכות</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="stat-today">0</span>
+          <span class="stat-label">היום</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="stat-storage">0</span>
+          <span class="stat-label">נפח (KB)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-number" id="stat-popular">-</span>
+          <span class="stat-label">עיצוב פופולרי</span>
+        </div>
+      </div>
+
+      <!-- Actions Bar -->
+      <div class="admin-actions">
+        <button class="btn btn-primary btn-sm" id="export-btn">ייצוא JSON</button>
+        <label class="btn btn-secondary btn-sm import-label">
+          ייבוא JSON
+          <input type="file" id="import-input" accept=".json" style="display:none;">
+        </label>
+        <button class="btn btn-secondary btn-sm" id="clear-btn">מחק הכל</button>
+      </div>
+
+      <!-- Blessings List -->
+      <div class="admin-section">
+        <div class="section-header">
+          <h2>ברכות</h2>
+          <span class="section-count" id="list-count">0</span>
+        </div>
+        <div id="blessings-list" class="blessings-list"></div>
+        <div id="empty-admin" class="admin-empty" style="display:none;">
+          <p>אין ברכות עדיין</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

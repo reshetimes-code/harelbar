@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מצגת ברכות - בר המצווה של הראלי</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✡</text></svg>">
+</head>
+<body class="slideshow-page">
+
+  <!-- CONFETTI CANVAS -->
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- Header -->
+  <div class="slideshow-header">
+    <h1>ברכות לכבוד הראלי</h1>
+    <p class="slideshow-subtitle">מזל טוב</p>
+  </div>
+
+  <!-- Swiper Slideshow -->
+  <div class="swiper" id="slideshow-swiper">
+    <div class="swiper-wrapper" id="slides-container"></div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" id="empty-state" style="display:none;">
+    <span class="empty-icon">✡</span>
+    <p>ממתינים לברכות...</p>
+  </div>
+
+  <!-- New Blessing Toast -->
+  <div class="new-blessing-toast" id="new-toast">ברכה חדשה התקבלה</div>
+
+  <!-- Controls -->
+  <div class="slideshow-controls">
+    <button id="play-btn">⏸ השהה</button>
+    <button id="speed-btn" data-speed="6000">מהירות: רגילה</button>
+    <button id="fullscreen-btn">מסך מלא</button>
+    <button id="confetti-btn">קונפטי</button>
+    <span class="count-badge" id="count-badge">0 ברכות</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/slideshow.js"></script>
+  <script src="js/confetti.js"></script>
+</body>
+</html>
