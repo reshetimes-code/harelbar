@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מסך מצגת - בר המצווה של הראלי</title>
+  <title>מסך מצגת - בר המצווה של הראל</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
@@ -21,17 +21,30 @@
       position: relative;
     }
 
+    .screen-container {
+      perspective: 1200px;
+    }
+
     .screen-card {
       position: absolute;
       inset: 0;
-      opacity: 0;
-      transition: opacity 1.2s ease;
       z-index: 1;
+      opacity: 0;
+      transform: rotateY(90deg) scale(0.8);
+      transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+      backface-visibility: hidden;
     }
 
     .screen-card.active {
       opacity: 1;
       z-index: 2;
+      transform: rotateY(0deg) scale(1);
+    }
+
+    .screen-card.exit-left {
+      opacity: 0;
+      transform: rotateY(-90deg) scale(0.8);
     }
 
     .screen-card .blessing-card {
@@ -88,7 +101,7 @@
 
   <div class="screen-container" id="screen">
     <div class="waiting-screen" id="waiting">
-      <h1>ברכות לכבוד הראלי</h1>
+      <h1>ברכות לכבוד הראל</h1>
       <p>ממתינים לברכות...</p>
     </div>
   </div>
@@ -124,16 +137,37 @@
       return div;
     }
 
+    // Transition types for variety
+    const transitions = [
+      { enter: 'rotateY(90deg) scale(0.8)',  exit: 'rotateY(-90deg) scale(0.8)' },
+      { enter: 'rotateX(90deg) scale(0.8)',  exit: 'rotateX(-90deg) scale(0.8)' },
+      { enter: 'translateX(100%) rotateY(30deg)', exit: 'translateX(-100%) rotateY(-30deg)' },
+      { enter: 'scale(0.3) rotateZ(15deg)',  exit: 'scale(1.5) rotateZ(-5deg)' },
+      { enter: 'translateY(100%) rotateX(20deg)', exit: 'translateY(-100%) rotateX(-20deg)' },
+    ];
+    let transitionIndex = 0;
+
     function showCard(blessing) {
       const html = renderCard(blessing);
       const next = activeCard === 'A' ? cardB : cardA;
       const current = activeCard === 'A' ? cardA : cardB;
+      const t = transitions[transitionIndex % transitions.length];
+      transitionIndex++;
 
       next.innerHTML = html;
+      next.style.transform = t.enter;
+      next.style.opacity = '0';
 
       requestAnimationFrame(() => {
+        // Exit current
+        current.classList.remove('active');
+        current.style.transform = t.exit;
+        current.style.opacity = '0';
+
+        // Enter next
         requestAnimationFrame(() => {
-          current.classList.remove('active');
+          next.style.transform = 'rotateY(0deg) rotateX(0deg) rotateZ(0deg) scale(1) translateX(0) translateY(0)';
+          next.style.opacity = '1';
           next.classList.add('active');
           activeCard = activeCard === 'A' ? 'B' : 'A';
         });
@@ -164,13 +198,14 @@
       });
     }
 
-    // Real-time listener — Firebase
+    // Real-time listener — Firebase (only approved blessings)
     onBlessingsChanged(function(allBlessings) {
-      const newOnes = allBlessings.filter(b => !knownIds.has(b.id));
+      const approved = allBlessings.filter(b => b.status === 'approved');
+      const newOnes = approved.filter(b => !knownIds.has(b.id));
 
       // Update local state
-      blessings = allBlessings;
-      allBlessings.forEach(b => knownIds.add(b.id));
+      blessings = approved;
+      approved.forEach(b => knownIds.add(b.id));
 
       if (blessings.length === 0) {
         waiting.style.display = 'flex';

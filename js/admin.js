@@ -1,6 +1,6 @@
 // ===== ADMIN PANEL LOGIC =====
 (function() {
-  const ADMIN_PASSWORD = 'hareli2026';
+  const ADMIN_PASSWORD = 'oren8773';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -83,6 +83,9 @@
   }
 
   function renderList(blessings) {
+    const loader = document.getElementById('blessings-loader');
+    if (loader) loader.style.display = 'none';
+
     if (blessings.length === 0) {
       blessingsList.style.display = 'none';
       emptyAdmin.style.display = 'block';
@@ -100,22 +103,39 @@
       }) : '';
       const text = escapeHtml(b.text).substring(0, 60) + (b.text.length > 60 ? '...' : '');
 
+      const status = b.status || 'pending';
+      const statusClass = status === 'approved' ? 'status-approved' : status === 'rejected' ? 'status-rejected' : 'status-pending';
+      const statusText = status === 'approved' ? 'אושר לעלות' : status === 'rejected' ? 'אין אישור להעלאה' : 'ממתין לאישור';
+      const approveBtn = status === 'pending' ? `<button class="blessing-item-approve" data-id="${b.id}" title="אשר">אשר העלאה</button>` : '';
+
       return `
-        <div class="blessing-item" data-id="${b.id}">
-          <img class="blessing-item-photo" src="${b.photoDataUrl}" alt="${escapeHtml(b.name)}">
+        <div class="blessing-item ${statusClass}" data-id="${b.id}">
+          ${b.photoDataUrl && b.photoDataUrl.length > 10
+            ? `<img class="blessing-item-photo" src="${b.photoDataUrl}" alt="${escapeHtml(b.name)}">`
+            : `<div class="blessing-item-photo blessing-item-no-photo">אין תמונה</div>`}
           <div class="blessing-item-info">
             <div class="blessing-item-name">${escapeHtml(b.name)}</div>
             <div class="blessing-item-text">${text}</div>
             <div class="blessing-item-meta">${date}</div>
           </div>
+          <span class="blessing-item-status ${statusClass}">${statusText}</span>
+          ${approveBtn}
           <button class="blessing-item-delete" data-id="${b.id}" title="מחק">✕</button>
         </div>
       `;
     }).join('');
   }
 
-  // Delete single blessing
+  // Approve blessing
   blessingsList.addEventListener('click', function(e) {
+    const approveBtn = e.target.closest('.blessing-item-approve');
+    if (approveBtn) {
+      const id = approveBtn.dataset.id;
+      db.ref('blessings/' + id + '/status').set('approved');
+      return;
+    }
+
+    // Delete single blessing
     const deleteBtn = e.target.closest('.blessing-item-delete');
     if (!deleteBtn) return;
 

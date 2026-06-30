@@ -3,6 +3,7 @@
   let selectedTemplateId = 1;
   let compressedPhoto = null;
   let currentBlessing = null;
+  let cropper = null;
 
   const form = document.getElementById('blessing-form');
   const nameInput = document.getElementById('guest-name');
@@ -16,6 +17,12 @@
   const formContainer = document.getElementById('form-container');
   const successState = document.getElementById('success-state');
   const newBlessingBtn = document.getElementById('new-blessing-btn');
+
+  // Crop modal elements
+  const cropModal = document.getElementById('crop-modal');
+  const cropImage = document.getElementById('crop-image');
+  const cropConfirm = document.getElementById('crop-confirm');
+  const cropCancel = document.getElementById('crop-cancel');
 
   // Photo upload - click
   photoArea.addEventListener('click', function() {
@@ -46,24 +53,90 @@
     }
   });
 
-  async function handlePhotoFile(file) {
+  function handlePhotoFile(file) {
     if (!file.type.startsWith('image/')) {
       alert('נא להעלות קובץ תמונה בלבד');
       return;
     }
 
-    try {
-      compressedPhoto = await compressImage(file);
-      photoArea.classList.add('has-photo');
-      photoArea.innerHTML = `
-        <img src="${compressedPhoto}" class="photo-preview" alt="תצוגה מקדימה">
-        <button type="button" class="remove-photo" onclick="removePhoto(event)">×</button>
-      `;
-      clearError('photo-group');
-    } catch (err) {
-      alert('שגיאה בהעלאת התמונה, נסה שוב');
-    }
+    // Read file and open cropper
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      cropImage.src = e.target.result;
+      cropModal.classList.add('active');
+
+      // Destroy previous cropper if exists
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+
+      // Wait for image to load then init cropper
+      cropImage.onload = function() {
+        cropper = new Cropper(cropImage, {
+          aspectRatio: 1,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 1,
+          cropBoxResizable: true,
+          cropBoxMovable: true,
+          background: false,
+          guides: false,
+          center: true,
+          highlight: false,
+          responsive: true,
+        });
+      };
+    };
+    reader.readAsDataURL(file);
   }
+
+  // Crop confirm
+  cropConfirm.addEventListener('click', function() {
+    if (!cropper) return;
+
+    const canvas = cropper.getCroppedCanvas({
+      width: 1200,
+      height: 1200,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+
+    compressedPhoto = canvas.toDataURL('image/jpeg', 0.85);
+
+    // Close crop modal
+    cropModal.classList.remove('active');
+    cropper.destroy();
+    cropper = null;
+
+    // Show preview in upload area
+    photoArea.classList.add('has-photo');
+    photoArea.innerHTML = `
+      <img src="${compressedPhoto}" class="photo-preview" alt="תצוגה מקדימה">
+      <button type="button" class="remove-photo" onclick="removePhoto(event)">×</button>
+    `;
+    clearError('photo-group');
+  });
+
+  // Crop cancel
+  cropCancel.addEventListener('click', function() {
+    cropModal.classList.remove('active');
+    if (cropper) {
+      cropper.destroy();
+      cropper = null;
+    }
+  });
+
+  // Close crop modal on backdrop click
+  cropModal.addEventListener('click', function(e) {
+    if (e.target === cropModal) {
+      cropModal.classList.remove('active');
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+    }
+  });
 
   // Remove photo (global for onclick)
   window.removePhoto = function(e) {
@@ -73,9 +146,8 @@
     photoArea.innerHTML = `
       <input type="file" id="photo-input" accept="image/*">
       <span class="upload-icon">📷</span>
-      <span class="upload-text">לחץ כאן להעלאת תמונה</span>
+      <span class="upload-text">לחצו כאן להעלאת תמונה</span>
     `;
-    // Re-bind the new file input
     const newInput = document.getElementById('photo-input');
     newInput.addEventListener('change', function() {
       if (newInput.files.length) handlePhotoFile(newInput.files[0]);
@@ -109,7 +181,6 @@
     successState.classList.add('active');
     resetForm();
 
-    // Trigger confetti burst on success
     document.dispatchEvent(new Event('blessing-sent'));
     if (window.confettiBurst) {
       setTimeout(() => window.confettiBurst(window.innerWidth / 2, window.innerHeight / 3, 120), 300);
@@ -152,12 +223,7 @@
       clearError('text-group');
     }
 
-    if (!compressedPhoto) {
-      showError('photo-group', 'photo-error');
-      valid = false;
-    } else {
-      clearError('photo-group');
-    }
+    clearError('photo-group');
 
     return valid;
   }
@@ -176,7 +242,6 @@
     }
   }
 
-  // Clear errors on input
   nameInput.addEventListener('input', () => clearError('name-group'));
   textInput.addEventListener('input', () => clearError('text-group'));
 
@@ -190,7 +255,7 @@
     photoArea.innerHTML = `
       <input type="file" id="photo-input" accept="image/*">
       <span class="upload-icon">📷</span>
-      <span class="upload-text">לחץ כאן להעלאת תמונה</span>
+      <span class="upload-text">לחצו כאן להעלאת תמונה</span>
     `;
     const newInput = document.getElementById('photo-input');
     newInput.addEventListener('change', function() {

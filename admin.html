@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>פאנל ניהול - בר המצווה של הראלי</title>
+  <title>פאנל ניהול - בר המצווה של הראל</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/admin.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚙</text></svg>">
@@ -32,7 +32,7 @@
       <div class="admin-header-content">
         <div>
           <h1>פאנל ניהול</h1>
-          <p>בר המצווה של הראלי</p>
+          <p>בר המצווה של הראל</p>
         </div>
         <div class="admin-header-actions">
           <a href="index.html" class="btn btn-secondary btn-sm">דף הברכות</a>
@@ -79,6 +79,10 @@
         <div class="section-header">
           <h2>ברכות</h2>
           <span class="section-count" id="list-count">0</span>
+        </div>
+        <div id="blessings-loader" class="admin-loader">
+          <div class="loader-spinner"></div>
+          <p>טוען ברכות...</p>
         </div>
         <div id="blessings-list" class="blessings-list"></div>
         <div id="empty-admin" class="admin-empty" style="display:none;">

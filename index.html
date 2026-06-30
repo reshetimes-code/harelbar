@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ברכות לבר המצווה של הראלי</title>
+  <title>ברכות לבר המצווה של הראל</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✡</text></svg>">
 </head>
 <body>
@@ -16,7 +18,7 @@
   <header class="event-header">
     <span class="header-icon">✡</span>
     <div class="decorative-line"></div>
-    <h1>בר המצווה של הראלי</h1>
+    <h1>בר המצווה של הראל</h1>
     <p class="subtitle">השאירו ברכה מהלב</p>
     <div class="decorative-line"></div>
     <span class="header-badge">מזל טוב</span>
@@ -29,13 +31,13 @@
 
         <div class="form-group" id="name-group">
           <label for="guest-name">השם שלך</label>
-          <input type="text" id="guest-name" placeholder="הכנס את שמך המלא" required>
-          <span class="error-msg" id="name-error">נא להזין שם</span>
+          <input type="text" id="guest-name" placeholder="הכניסו את שמכם המלא" required>
+          <span class="error-msg" id="name-error">נא להזין שם מלא</span>
         </div>
 
         <div class="form-group" id="text-group">
           <label for="blessing-text">הברכה שלך</label>
-          <textarea id="blessing-text" placeholder="כתוב כאן את הברכה שלך להראלי..." required></textarea>
+          <textarea id="blessing-text" placeholder="כתבו כאן את הברכה שלכם להראל..." required></textarea>
           <span class="error-msg" id="text-error">נא לכתוב ברכה</span>
         </div>
 
@@ -44,7 +46,7 @@
           <div class="photo-upload-area" id="photo-area">
             <input type="file" id="photo-input" accept="image/*">
             <span class="upload-icon">📷</span>
-            <span class="upload-text">לחץ כאן להעלאת תמונה</span>
+            <span class="upload-text">לחצו כאן להעלאת תמונה</span>
           </div>
           <span class="error-msg" id="photo-error">נא להעלות תמונה</span>
         </div>
@@ -52,6 +54,20 @@
         <button type="submit" class="btn btn-primary">
           תצוגה מקדימה
         </button>
+
+        <div class="share-section">
+          <p class="share-label">שתפו לברכה נוספת</p>
+          <div class="share-buttons">
+            <a href="https://wa.me/?text=%D7%91%D7%A8%D7%9B%D7%95%20%D7%90%D7%AA%20%D7%94%D7%A8%D7%90%D7%9C%20%D7%9C%D7%91%D7%A8%20%D7%94%D7%9E%D7%A6%D7%95%D7%95%D7%94!%20%D7%9B%D7%AA%D7%91%D7%95%20%D7%91%D7%A8%D7%9B%D7%94%20%D7%91%D7%A7%D7%99%D7%A9%D7%95%D7%A8%20%F0%9F%91%87%0Ahttps://hchc.co.il" target="_blank" class="share-btn share-whatsapp">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              שתפו בוואטסאפ
+            </a>
+            <button class="share-btn share-copy" id="copy-link-btn">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              העתיקו קישור
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   </main>
@@ -77,13 +93,23 @@
     </div>
   </div>
 
-  <!-- ADMIN LINKS -->
-  <div class="admin-links">
-    <a href="slideshow.html">מצגת</a>
-    <a href="book.html">ספר ברכות</a>
-    <a href="admin.html">ניהול</a>
+  <!-- CROP MODAL -->
+  <div class="modal-overlay" id="crop-modal">
+    <div class="modal-content" style="max-width:90vw; max-height:90vh; padding:16px; background:var(--navy-card); border-radius:var(--radius-lg); border:1px solid var(--navy-border);">
+      <p style="text-align:center; margin-bottom:12px; color:var(--text-secondary); font-size:0.9rem;">חתכו את התמונה לריבוע</p>
+      <div style="max-height:60vh; overflow:hidden;">
+        <img id="crop-image" style="max-width:100%; display:block;">
+      </div>
+      <div class="modal-actions" style="margin-top:14px;">
+        <button class="btn btn-success" id="crop-confirm">אישור</button>
+        <button class="btn btn-secondary" id="crop-cancel">ביטול</button>
+      </div>
+    </div>
   </div>
 
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js"></script>
@@ -91,5 +117,45 @@
   <script src="js/templates.js"></script>
   <script src="js/guest.js"></script>
   <script src="js/confetti.js"></script>
+  <script>
+    // Copy link button
+    document.getElementById('copy-link-btn').addEventListener('click', function() {
+      navigator.clipboard.writeText('https://hchc.co.il').then(() => {
+        this.classList.add('copied');
+        this.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> הקישור הועתק!';
+        setTimeout(() => {
+          this.classList.remove('copied');
+          this.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> העתיקו קישור';
+        }, 3000);
+      });
+    });
+
+    if (!sessionStorage.getItem('welcome_shown')) {
+      Swal.fire({
+        html: `
+          <div dir="rtl" style="text-align:center; padding:8px 0;">
+            <div style="width:56px; height:56px; border-radius:50%; background:rgba(184,149,62,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.6rem; color:#d4b065;">✡</div>
+            <h2 style="color:#fff; font-family:'Assistant',sans-serif; font-weight:800; font-size:1.8rem; margin:0 0 4px; letter-spacing:0.5px;">ברוכים הבאים!</h2>
+            <p style="color:#d4b065; font-size:1.3rem; margin:0 0 16px; font-weight:600;">בר המצווה של הראל בן 13</p>
+            <div style="width:40px; height:1px; background:#d4b065; margin:0 auto 16px; opacity:0.4;"></div>
+            <p style="color:rgba(255,255,255,0.6); font-size:1.1rem; line-height:2; margin:0;">
+              כתבו ברכה עם תמונה והיא תעלה למסך<br>
+              בסוף האירוע ניצור מהברכות אלבום מזכרת
+            </p>
+          </div>
+        `,
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        color: '#fff',
+        confirmButtonText: 'בואו נתחיל',
+        confirmButtonColor: '#b8953e',
+        width: 380,
+        padding: '28px 24px 20px',
+        backdrop: 'rgba(0,0,0,0.85)',
+        showClass: { popup: 'swal2-show' },
+      });
+      sessionStorage.setItem('welcome_shown', 'true');
+    }
+  </script>
 </body>
 </html>
