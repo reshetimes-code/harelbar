@@ -104,9 +104,29 @@
       const text = escapeHtml(b.text).substring(0, 60) + (b.text.length > 60 ? '...' : '');
 
       const status = b.status || 'pending';
-      const statusClass = status === 'approved' ? 'status-approved' : status === 'rejected' ? 'status-rejected' : 'status-pending';
-      const statusText = status === 'approved' ? 'אושר לעלות' : status === 'rejected' ? 'אין אישור להעלאה' : 'ממתין לאישור';
-      const approveBtn = status === 'pending' ? `<button class="blessing-item-approve" data-id="${b.id}" title="אשר">אשר העלאה</button>` : '';
+      const isRejected = status === 'rejected';
+      const isPending = status === 'pending';
+      const isApproved = status === 'approved';
+      const statusClass = isApproved ? 'status-approved' : isRejected ? 'status-rejected' : 'status-pending';
+      const statusText = isApproved ? 'אושר לעלות' : isRejected ? 'אין אישור להעלאה' : 'ממתין לאישור';
+
+      // Rejected warning block
+      const rejectedBlock = isRejected ? `
+        <div class="blessing-item-warning">
+          <span class="warning-text">⚠️ הודעה זו חשודה - יש לבדוק עם השולח</span>
+          ${b.rejectReason ? `<span class="warning-reason">סיבה: ${escapeHtml(b.rejectReason)}</span>` : ''}
+          ${b.phone ? `<a href="https://wa.me/${(b.phone || '').replace(/[-\s]/g,'').replace(/^0/,'972')}?text=${encodeURIComponent('שלום, ראינו ששלחת ברכה לבר המצווה של הראל. ההודעה שלך נבדקת ולא נוכל להעלות אותה עד לבירור. אנא צור קשר.')}" target="_blank" class="warning-whatsapp">שלחו הודעה לשולח</a>` : ''}
+        </div>
+      ` : '';
+
+      // Action buttons
+      let actionBtns = '';
+      if (isPending) {
+        actionBtns = `<button class="blessing-item-approve" data-id="${b.id}">אשר העלאה</button>`;
+      }
+      if (isRejected) {
+        actionBtns = `<button class="blessing-item-approve" data-id="${b.id}">אשר בכל זאת</button>`;
+      }
 
       return `
         <div class="blessing-item ${statusClass}" data-id="${b.id}">
@@ -118,9 +138,10 @@
             ${b.phone ? `<div class="blessing-item-phone">${escapeHtml(b.phone)}</div>` : ''}
             <div class="blessing-item-text">${text}</div>
             <div class="blessing-item-meta">${date}</div>
+            ${rejectedBlock}
           </div>
           <span class="blessing-item-status ${statusClass}">${statusText}</span>
-          ${approveBtn}
+          ${actionBtns}
           <button class="blessing-item-delete" data-id="${b.id}" title="מחק">✕</button>
         </div>
       `;

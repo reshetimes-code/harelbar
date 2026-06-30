@@ -63,7 +63,7 @@ REJECTED - אם הברכה פוגענית (ואז הוסף סיבה קצרה)`;
 
 // Trigger when new blessing is created
 exports.onNewBlessing = onValueCreated(
-  { ref: "/blessings/{blessingId}", region: "us-central1" },
+  { ref: "/blessings/{blessingId}", region: "us-central1", secrets: ["GEMINI_API_KEY"] },
   async (event) => {
     const blessing = event.data.val();
     const blessingId = event.params.blessingId;
