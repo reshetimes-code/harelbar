@@ -245,6 +245,14 @@
   margin-bottom: 2px;
 }
 
+.blessing-item-phone {
+  font-size: 0.75rem;
+  color: var(--gold-light);
+  direction: ltr;
+  text-align: right;
+  opacity: 0.7;
+}
+
 .blessing-item-text {
   font-size: 0.8rem;
   color: var(--text-muted);

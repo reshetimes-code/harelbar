@@ -115,6 +115,7 @@
             : `<div class="blessing-item-photo blessing-item-no-photo">אין תמונה</div>`}
           <div class="blessing-item-info">
             <div class="blessing-item-name">${escapeHtml(b.name)}</div>
+            ${b.phone ? `<div class="blessing-item-phone">${escapeHtml(b.phone)}</div>` : ''}
             <div class="blessing-item-text">${text}</div>
             <div class="blessing-item-meta">${date}</div>
           </div>

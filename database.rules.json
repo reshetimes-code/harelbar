@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "blessings": {
+      ".read": true,
+      ".indexOn": ["createdAt", "status"],
+      "$blessingId": {
+        ".write": "!data.exists() || newData.child('status').exists()",
+        ".validate": "newData.hasChildren(['name', 'text', 'createdAt'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
+        "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 5000" },
+        "phone": { ".validate": "newData.isString() && newData.val().length < 20" },
+        "photoDataUrl": { ".validate": "newData.isString() && newData.val().length < 2000000" },
+        "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected')" }
+      }
+    }
+  }
+}

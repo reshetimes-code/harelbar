@@ -1207,6 +1207,42 @@ body {
   border-color: rgba(46,204,113,0.3);
 }
 
+/* ===== SHARE MODAL OPTIONS ===== */
+.share-modal-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  text-decoration: none;
+  color: #fff;
+  transition: all 0.2s ease;
+}
+
+.share-modal-option:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(37,211,102,0.3);
+}
+
+.share-modal-option-info {
+  flex: 1;
+  text-align: right;
+}
+
+.share-modal-option-info strong {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.share-modal-option-info span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 /* ===== ERROR ===== */
 .error-msg { color: #e55; font-size: 1rem; margin-top: 6px; display: none; font-weight: 600; }
 .error-msg.show { display: block; }

@@ -1,5 +1,11 @@
 // ===== GUEST PAGE LOGIC =====
 (function() {
+  // Redirect to welcome if no phone
+  if (!sessionStorage.getItem('guest_phone')) {
+    window.location.href = 'welcome.html';
+    return;
+  }
+
   let selectedTemplateId = 1;
   let compressedPhoto = null;
   let currentBlessing = null;
@@ -162,6 +168,7 @@
 
     currentBlessing = {
       name: nameInput.value.trim(),
+      phone: sessionStorage.getItem('guest_phone') || '',
       text: textInput.value.trim(),
       photoDataUrl: compressedPhoto,
       templateId: selectedTemplateId
