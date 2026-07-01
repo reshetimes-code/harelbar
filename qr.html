@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Codes - בר המצווה של הראל</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .qr-page {
+      min-height: 100vh;
+      background: var(--navy);
+      padding: 40px 20px;
+    }
+
+    .qr-page h1 {
+      text-align: center;
+      font-family: 'Assistant', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      margin-bottom: 8px;
+    }
+
+    .qr-page .subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+    }
+
+    .qr-grid {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .qr-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      width: 350px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    .qr-card h2 {
+      font-family: 'Assistant', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+
+    .qr-card p {
+      color: #666;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+    }
+
+    .qr-card canvas {
+      display: block;
+      margin: 0 auto 16px;
+    }
+
+    .qr-url {
+      font-size: 0.8rem;
+      color: #999;
+      word-break: break-all;
+      margin-bottom: 16px;
+    }
+
+    .qr-download {
+      display: inline-block;
+      padding: 10px 24px;
+      background: var(--gold);
+      color: #1a1a2e;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Assistant', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .qr-back {
+      display: block;
+      text-align: center;
+      margin-top: 32px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+
+    @media print {
+      .qr-page { background: #fff; padding: 20px; }
+      .qr-back, .qr-download { display: none; }
+      .qr-card { box-shadow: none; border: 1px solid #eee; }
+    }
+  </style>
+</head>
+<body>
+  <div class="qr-page">
+    <h1>QR Codes</h1>
+    <p class="subtitle">הדפיסו ושימו על שולחנות באירוע</p>
+
+    <div class="qr-grid">
+      <div class="qr-card">
+        <h2>✍️ כתיבת ברכה</h2>
+        <p>לאורחים - סרקו וכתבו ברכה</p>
+        <canvas id="qr-guests"></canvas>
+        <div class="qr-url">hchc.co.il</div>
+        <button class="qr-download" onclick="downloadQR('qr-guests', 'qr-bless')">הורידו QR</button>
+      </div>
+
+      <div class="qr-card">
+        <h2>🖥 מסך ברכות</h2>
+        <p>חיבור המסך למצגת</p>
+        <canvas id="qr-screen"></canvas>
+        <div class="qr-url">hchc.co.il/screen.html</div>
+        <button class="qr-download" onclick="downloadQR('qr-screen', 'qr-screen')">הורידו QR</button>
+      </div>
+
+      <div class="qr-card">
+        <h2>⚙ פאנל ניהול</h2>
+        <p>כניסה לניהול ברכות</p>
+        <canvas id="qr-admin"></canvas>
+        <div class="qr-url">hchc.co.il/admin.html</div>
+        <button class="qr-download" onclick="downloadQR('qr-admin', 'qr-admin')">הורידו QR</button>
+      </div>
+    </div>
+
+    <a href="admin.html" class="qr-back">← חזרה לפאנל ניהול</a>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    QRCode.toCanvas(document.getElementById('qr-guests'), 'https://hchc.co.il', {
+      width: 250,
+      margin: 2,
+      color: { dark: '#0c1425', light: '#ffffff' }
+    });
+
+    QRCode.toCanvas(document.getElementById('qr-screen'), 'https://hchc.co.il/screen.html', {
+      width: 250,
+      margin: 2,
+      color: { dark: '#0c1425', light: '#ffffff' }
+    });
+
+    QRCode.toCanvas(document.getElementById('qr-admin'), 'https://hchc.co.il/admin.html', {
+      width: 250,
+      margin: 2,
+      color: { dark: '#0c1425', light: '#ffffff' }
+    });
+
+    function downloadQR(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>
