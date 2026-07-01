@@ -102,13 +102,13 @@
     if (!cropper) return;
 
     const canvas = cropper.getCroppedCanvas({
-      width: 1200,
-      height: 1200,
+      width: 1920,
+      height: 1920,
       imageSmoothingEnabled: true,
       imageSmoothingQuality: 'high',
     });
 
-    compressedPhoto = canvas.toDataURL('image/jpeg', 0.85);
+    compressedPhoto = canvas.toDataURL('image/jpeg', 0.92);
 
     // Close crop modal
     cropModal.classList.remove('active');

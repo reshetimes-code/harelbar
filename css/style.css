@@ -506,7 +506,8 @@ body {
     radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 60%);
 }
 
-.blessing-card.no-photo::before {
+/* Star watermark only on screen.html slideshow, not in preview modal */
+.screen-card .blessing-card.no-photo::before {
   content: '✡';
   position: absolute;
   top: 50%;
@@ -516,6 +517,10 @@ body {
   color: rgba(184,149,62,0.04);
   z-index: 1;
   pointer-events: none;
+}
+
+.modal-content .blessing-card.no-photo::before {
+  display: none;
 }
 
 .blessing-card.no-photo .card-content {

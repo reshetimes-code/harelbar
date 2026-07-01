@@ -2,10 +2,11 @@
   "rules": {
     "blessings": {
       ".read": true,
+      ".write": true,
       ".indexOn": ["createdAt", "status"],
       "$blessingId": {
-        ".write": "!data.exists() || newData.child('status').exists()",
-        ".validate": "newData.hasChildren(['name', 'text', 'createdAt'])",
+        ".write": true,
+        ".validate": "!newData.exists() || newData.hasChildren(['name', 'text', 'createdAt'])",
         "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
         "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 5000" },
         "phone": { ".validate": "newData.isString() && newData.val().length < 20" },

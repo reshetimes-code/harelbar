@@ -2,13 +2,12 @@ const { onValueCreated } = require("firebase-functions/v2/database");
 const { onRequest } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { VertexAI } = require("@google-cloud/vertexai");
 
 admin.initializeApp();
 
 const ADMIN_EMAIL = "orenshp77@gmail.com";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const vertexAI = new VertexAI({ project: "harelbar-ca7dd", location: "us-central1" });
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -21,7 +20,7 @@ const transporter = nodemailer.createTransport({
 // Check blessing content with Gemini AI
 async function checkBlessingContent(name, text) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = vertexAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
     const prompt = `אתה מערכת סינון תוכן לאירוע בר מצווה. בדוק את הברכה הבאה וקבע אם היא מתאימה להצגה פומבית.
 
@@ -46,8 +45,8 @@ async function checkBlessingContent(name, text) {
 APPROVED - אם הברכה תקינה
 REJECTED - אם הברכה פוגענית (ואז הוסף סיבה קצרה)`;
 
-    const result = await model.generateContent(prompt);
-    const response = result.response.text().trim();
+    const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] });
+    const response = result.response.candidates[0].content.parts[0].text.trim();
     console.log("Gemini response:", response);
 
     if (response.startsWith("REJECTED")) {
@@ -63,7 +62,7 @@ REJECTED - אם הברכה פוגענית (ואז הוסף סיבה קצרה)`;
 
 // Trigger when new blessing is created
 exports.onNewBlessing = onValueCreated(
-  { ref: "/blessings/{blessingId}", region: "us-central1", secrets: ["GEMINI_API_KEY"] },
+  { ref: "/blessings/{blessingId}", region: "us-central1" },
   async (event) => {
     const blessing = event.data.val();
     const blessingId = event.params.blessingId;

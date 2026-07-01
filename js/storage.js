@@ -57,7 +57,7 @@ function onBlessingsChanged(callback) {
 }
 
 // Compress image before upload
-function compressImage(file, maxWidth = 1600, quality = 0.85) {
+function compressImage(file, maxWidth = 1920, quality = 0.92) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = function(e) {
