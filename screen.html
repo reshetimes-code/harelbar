@@ -265,8 +265,8 @@
 
   })();
 
-  // Generate QR codes using Google Charts API (works on all browsers including TV)
-  var qrUrl = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' + encodeURIComponent('https://hchc.co.il') + '&chco=0c1425';
+  // Generate QR codes using api.qrserver.com (reliable, works everywhere)
+  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent('https://hchc.co.il') + '&color=0c1425&bgcolor=ffffff';
   document.getElementById('waiting-qr-img').src = qrUrl;
   document.getElementById('floating-qr-img').src = qrUrl;
   </script>
