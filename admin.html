@@ -36,7 +36,7 @@
         </div>
         <div class="admin-header-actions">
           <a href="index.html" class="btn btn-secondary btn-sm">דף הברכות</a>
-          <a href="screen.html" class="btn btn-secondary btn-sm">מצגת</a>
+          <button class="btn btn-sm" id="start-screen-btn" style="background:#2ecc71; color:#fff;">▶ התחל מצגת</button>
           <button class="btn btn-secondary btn-sm" id="show-qr-btn">QR מצגת</button>
           <a href="book.html" class="btn btn-secondary btn-sm">ספר ברכות</a>
           <button class="btn btn-secondary btn-sm" id="logout-btn">התנתק</button>
@@ -108,6 +108,23 @@
   <script src="js/templates.js"></script>
   <script src="js/admin.js"></script>
   <script>
+    // Start/Stop screen
+    const startBtn = document.getElementById('start-screen-btn');
+    db.ref('screenControl/start').on('value', function(snap) {
+      if (snap.val() === true) {
+        startBtn.textContent = '⏹ עצור מצגת';
+        startBtn.style.background = '#e74c3c';
+      } else {
+        startBtn.textContent = '▶ התחל מצגת';
+        startBtn.style.background = '#2ecc71';
+      }
+    });
+    startBtn.addEventListener('click', function() {
+      db.ref('screenControl/start').once('value', function(snap) {
+        db.ref('screenControl/start').set(snap.val() === true ? false : true);
+      });
+    });
+
     document.getElementById('show-qr-btn').addEventListener('click', function() {
       const modal = document.getElementById('qr-modal');
       modal.style.display = 'flex';

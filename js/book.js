@@ -4,7 +4,6 @@
   const statsEl = document.getElementById('stats');
   const emptyBook = document.getElementById('empty-book');
   const downloadBtn = document.getElementById('download-btn');
-  const layoutSelect = document.getElementById('layout-select');
   const progressContainer = document.getElementById('progress-container');
   const progressFill = document.getElementById('progress-fill');
   const progressText = document.getElementById('progress-text');
@@ -47,7 +46,6 @@
     const blessings = await getAllBlessings();
     if (blessings.length === 0) return;
 
-    const cardsPerPage = parseInt(layoutSelect.value);
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = 210;
@@ -82,34 +80,61 @@
     for (let i = 0; i < cards.length; i++) {
       updateProgress(i + 1, totalSteps);
 
-      const canvas = await html2canvas(cards[i], {
-        scale: 2,
+      const card = cards[i];
+      const origWidth = card.style.width;
+      const origHeight = card.style.height;
+      card.style.width = '794px';
+      card.style.height = '1123px';
+      card.style.borderRadius = '0';
+
+      // Pre-blur card-bg image using canvas since html2canvas doesn't support CSS blur
+      const cardBg = card.querySelector('.card-bg');
+      let origBgStyle = null;
+      if (cardBg) {
+        origBgStyle = cardBg.style.cssText;
+        const bgImg = cardBg.style.backgroundImage;
+        const urlMatch = bgImg && bgImg.match(/url\(['"]?(.*?)['"]?\)/);
+        if (urlMatch) {
+          try {
+            const blurCanvas = document.createElement('canvas');
+            blurCanvas.width = 800;
+            blurCanvas.height = 1100;
+            const ctx = blurCanvas.getContext('2d');
+            ctx.filter = 'blur(30px) saturate(1.3) brightness(0.5)';
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = urlMatch[1];
+            await new Promise(r => { img.onload = r; img.onerror = r; });
+            ctx.drawImage(img, -60, -60, 920, 1220);
+            const blurredUrl = blurCanvas.toDataURL();
+            cardBg.style.filter = 'none';
+            cardBg.style.backgroundImage = `url('${blurredUrl}')`;
+            cardBg.style.transform = 'none';
+            cardBg.style.inset = '0';
+          } catch(e) {}
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 50));
+
+      const canvas = await html2canvas(card, {
+        scale: 3,
         useCORS: true,
         backgroundColor: null,
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const imgRatio = canvas.height / canvas.width;
-
-      if (cardsPerPage === 1) {
-        pdf.addPage();
-        const cardWidth = pageWidth - 40;
-        const cardHeight = cardWidth * imgRatio;
-        const x = 20;
-        const y = (pageHeight - cardHeight) / 2;
-        pdf.addImage(imgData, 'JPEG', x, y, cardWidth, cardHeight);
-      } else {
-        const posOnPage = i % 2;
-        if (posOnPage === 0) pdf.addPage();
-
-        const cardWidth = pageWidth - 40;
-        const cardHeight = Math.min(cardWidth * imgRatio, (pageHeight - 30) / 2 - 10);
-        const adjustedWidth = cardHeight / imgRatio;
-        const x = (pageWidth - adjustedWidth) / 2;
-        const y = posOnPage === 0 ? 15 : pageHeight / 2 + 5;
-        pdf.addImage(imgData, 'JPEG', x, y, adjustedWidth, cardHeight);
+      // Restore original styles
+      if (cardBg && origBgStyle !== null) {
+        cardBg.style.cssText = origBgStyle;
       }
+      card.style.width = origWidth;
+      card.style.height = origHeight;
+      card.style.borderRadius = '';
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
 
       await new Promise(r => setTimeout(r, 50));
     }

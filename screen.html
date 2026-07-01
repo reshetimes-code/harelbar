@@ -106,6 +106,7 @@
       <p style="margin-bottom:32px;">סרקו את הקוד וכתבו ברכה</p>
       <div id="waiting-qr" style="background:#fff; padding:16px; border-radius:16px; display:inline-block;"></div>
       <p style="margin-top:16px; color:rgba(255,255,255,0.3); font-size:0.9rem;">hchc.co.il</p>
+      <p style="margin-top:32px; color:rgba(255,255,255,0.2); font-size:0.75rem;">לחצו Space להתחלת המצגת</p>
     </div>
 
     <!-- Permanent QR in corner during slideshow -->
@@ -190,6 +191,39 @@
       });
     }
 
+    let slideshowStarted = false;
+
+    // Listen for start/stop from Firebase (admin panel)
+    db.ref('screenControl/start').on('value', function(snapshot) {
+      if (snapshot.val() === true && !slideshowStarted) {
+        startSlideshow();
+      } else if (snapshot.val() === false && slideshowStarted) {
+        // Stop slideshow, show QR again
+        slideshowStarted = false;
+        currentIndex = -1;
+        if (autoTimer) clearInterval(autoTimer);
+        waiting.style.display = 'flex';
+        document.getElementById('qr-floating').style.display = 'none';
+        var cardA = document.getElementById('card-a');
+        var cardB = document.getElementById('card-b');
+        if (cardA) cardA.classList.remove('active');
+        if (cardB) cardB.classList.remove('active');
+      }
+    });
+
+    function startSlideshow() {
+      if (slideshowStarted) return;
+      slideshowStarted = true;
+      waiting.style.display = 'none';
+      document.getElementById('qr-floating').style.display = 'block';
+
+      if (blessings.length > 0 && currentIndex === -1) {
+        currentIndex = 0;
+        showCard(blessings[0]);
+        startAutoPlay();
+      }
+    }
+
     // Real-time listener — Firebase (only approved blessings)
     onBlessingsChanged(function(allBlessings) {
       const approved = allBlessings.filter(b => b.status === 'approved');
@@ -199,16 +233,17 @@
       blessings = approved;
       approved.forEach(b => knownIds.add(b.id));
 
+      // If slideshow not started yet, stay on QR screen
+      if (!slideshowStarted) return;
+
       if (blessings.length === 0) {
         waiting.style.display = 'flex';
+        document.getElementById('qr-floating').style.display = 'none';
+        slideshowStarted = false;
         return;
       }
 
-      // Hide waiting, show floating QR
-      waiting.style.display = 'none';
-      document.getElementById('qr-floating').style.display = 'block';
-
-      // If first load, start slideshow
+      // If first card
       if (currentIndex === -1) {
         currentIndex = 0;
         showCard(blessings[0]);
@@ -220,11 +255,9 @@
       if (newOnes.length > 0) {
         const latest = newOnes[newOnes.length - 1];
         showNewBlessingAlert(latest);
-
-        // Show new blessing immediately
         currentIndex = blessings.findIndex(b => b.id === latest.id);
         showCard(latest);
-        startAutoPlay(); // Reset timer
+        startAutoPlay();
       }
     });
 
@@ -247,8 +280,13 @@
       }
       if (e.code === 'Space') {
         e.preventDefault();
-        nextCard();
-        startAutoPlay();
+        if (!slideshowStarted) {
+          startSlideshow();
+          db.ref('screenControl/start').set(true);
+        } else {
+          nextCard();
+          startAutoPlay();
+        }
       }
     });
     // Show floating QR when slideshow is playing
