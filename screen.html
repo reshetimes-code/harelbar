@@ -103,15 +103,17 @@
   <div class="screen-container" id="screen">
     <div class="waiting-screen" id="waiting">
       <h1>ברכות לכבוד הראל</h1>
-      <p style="margin-bottom:32px;">סרקו את הקוד וכתבו ברכה</p>
-      <div id="waiting-qr" style="background:#fff; padding:16px; border-radius:16px; display:inline-block;"></div>
-      <p style="margin-top:16px; color:rgba(255,255,255,0.3); font-size:0.9rem;">hchc.co.il</p>
+      <p style="margin-bottom:32px; font-size:1.5rem;">סרקו את הקוד וכתבו ברכה</p>
+      <div style="background:#fff; padding:20px; border-radius:20px; display:inline-block;">
+        <img id="waiting-qr-img" style="width:280px; height:280px;" alt="QR">
+      </div>
+      <p style="margin-top:16px; color:rgba(255,255,255,0.4); font-size:1.1rem;">hchc.co.il</p>
     </div>
 
     <!-- Permanent QR in corner during slideshow -->
     <div id="qr-floating" style="display:none; position:fixed; bottom:24px; left:24px; z-index:50;">
-      <div style="background:#fff; border-radius:12px; padding:8px; box-shadow:0 4px 20px rgba(0,0,0,0.4);">
-        <div id="floating-qr-mini"></div>
+      <div style="background:#fff; border-radius:12px; padding:6px; box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+        <img id="floating-qr-img" style="width:120px; height:120px;" alt="QR">
       </div>
       <p style="text-align:center; color:rgba(255,255,255,0.4); font-size:0.7rem; margin-top:6px;">סרקו וכתבו ברכה</p>
     </div>
@@ -119,7 +121,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js"></script>
@@ -264,10 +265,10 @@
 
   })();
 
-  // Generate QR codes
-  var qrOpts = { width: 250, height: 250, colorDark: '#0c1425', colorLight: '#ffffff' };
-  new QRCode(document.getElementById('waiting-qr'), Object.assign({ text: 'https://hchc.co.il' }, qrOpts));
-  new QRCode(document.getElementById('floating-qr-mini'), { text: 'https://hchc.co.il', width: 120, height: 120, colorDark: '#0c1425', colorLight: '#ffffff' });
+  // Generate QR codes using Google Charts API (works on all browsers including TV)
+  var qrUrl = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' + encodeURIComponent('https://hchc.co.il') + '&chco=0c1425';
+  document.getElementById('waiting-qr-img').src = qrUrl;
+  document.getElementById('floating-qr-img').src = qrUrl;
   </script>
 </body>
 </html>
