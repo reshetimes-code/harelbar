@@ -753,8 +753,8 @@ body {
 
 /* Square photo */
 .card-photo {
-  width: 38vh;
-  height: 38vh;
+  width: 45vh;
+  height: 45vh;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 40px rgba(0,0,0,0.4);
@@ -1044,17 +1044,17 @@ body {
 
 /* ===== ADAPTIVE CARD SIZES ===== */
 /* Small text (< 120 chars) - big photo, big text */
-.card-size-sm .card-photo { width: 40vh; height: 40vh; }
+.card-size-sm .card-photo { width: 50vh; height: 50vh; }
 .card-size-sm .card-name { font-size: 3.5rem; }
 .card-size-sm .card-text { font-size: 1.8rem; }
 
 /* Medium text (120-250 chars) - default */
-.card-size-md .card-photo { width: 35vh; height: 35vh; }
+.card-size-md .card-photo { width: 42vh; height: 42vh; }
 .card-size-md .card-name { font-size: 3rem; }
 .card-size-md .card-text { font-size: 1.5rem; }
 
 /* Long text (250-400 chars) - smaller photo */
-.card-size-lg .card-photo { width: 26vh; height: 26vh; }
+.card-size-lg .card-photo { width: 32vh; height: 32vh; }
 .card-size-lg .card-name { font-size: 2.5rem; }
 .card-size-lg .card-text { font-size: 1.25rem; line-height: 1.7; }
 .card-size-lg .card-floral-divider { width: 45%; }
