@@ -127,6 +127,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js"></script>
@@ -211,8 +212,9 @@
         return;
       }
 
-      // Hide waiting
+      // Hide waiting, show floating QR
       waiting.style.display = 'none';
+      document.getElementById('qr-floating').style.display = 'block';
 
       // If first load, start slideshow
       if (currentIndex === -1) {
@@ -257,7 +259,24 @@
         startAutoPlay();
       }
     });
+    // Show floating QR when slideshow is playing
+    function showFloatingQR() {
+      const el = document.getElementById('qr-floating');
+      el.style.display = 'block';
+    }
+
   })();
+
+  // Generate QR codes
+  var qrOpts = { width: 250, height: 250, colorDark: '#0c1425', colorLight: '#ffffff' };
+  new QRCode(document.getElementById('waiting-qr'), Object.assign({ text: 'https://hchc.co.il' }, qrOpts));
+  new QRCode(document.getElementById('floating-qr-mini'), { text: 'https://hchc.co.il', width: 64, height: 64, colorDark: '#0c1425', colorLight: '#ffffff' });
+  new QRCode(document.getElementById('overlay-qr'), Object.assign({ text: 'https://hchc.co.il' }, qrOpts));
+
+  function toggleQROverlay() {
+    var overlay = document.getElementById('qr-overlay');
+    overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+  }
   </script>
 </body>
 </html>

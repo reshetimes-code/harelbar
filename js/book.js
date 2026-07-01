@@ -28,7 +28,21 @@
     });
   }
 
-  // Download PDF
+  function createCoverElement(count) {
+    const cover = document.createElement('div');
+    cover.style.cssText = 'width:794px;height:1123px;background:#1a2744;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Assistant,sans-serif;box-sizing:border-box;border:4px solid #d4a853;padding:40px;position:fixed;top:0;left:0;z-index:9999;';
+    cover.innerHTML = `
+      <div style="border:2px solid #d4a853;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;box-sizing:border-box;">
+        <h1 style="color:#d4a853;font-size:56px;font-weight:800;margin:0;">ספר הברכות</h1>
+        <p style="color:#f0d68a;font-size:36px;font-weight:700;margin:30px 0 0;">בר המצווה של הראלי</p>
+        <p style="color:#c8c8c8;font-size:24px;margin:40px 0 0;">${new Date().toLocaleDateString('he-IL')}</p>
+        <p style="color:#c8c8c8;font-size:20px;margin:20px 0 0;">${count} ברכות מהלב</p>
+        <p style="color:#d4a853;font-size:80px;margin:50px 0 0;">✡</p>
+      </div>
+    `;
+    return cover;
+  }
+
   downloadBtn.addEventListener('click', async function() {
     const blessings = await getAllBlessings();
     if (blessings.length === 0) return;
@@ -41,30 +55,25 @@
 
     downloadBtn.disabled = true;
     progressContainer.classList.add('active');
+    progressText.textContent = 'מכין שער...';
 
-    // --- Cover Page (rendered as image for Hebrew support) ---
-    const coverEl = document.getElementById('pdf-cover');
-    document.getElementById('cover-date').textContent = new Date().toLocaleDateString('he-IL');
-    document.getElementById('cover-count').textContent = blessings.length + ' ברכות מהלב';
+    // --- Cover Page ---
+    const cover = createCoverElement(blessings.length);
+    document.body.appendChild(cover);
+    await new Promise(r => setTimeout(r, 200));
 
-    // Make visible for html2canvas
-    coverEl.style.opacity = '1';
-    coverEl.style.zIndex = '9999';
-    await new Promise(r => setTimeout(r, 100));
-
-    const coverCanvas = await html2canvas(coverEl, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#1a2744',
-      logging: false,
-    });
-
-    // Hide again
-    coverEl.style.opacity = '0';
-    coverEl.style.zIndex = '-1';
-
-    const coverImg = coverCanvas.toDataURL('image/jpeg', 0.95);
-    pdf.addImage(coverImg, 'JPEG', 0, 0, pageWidth, pageHeight);
+    try {
+      const coverCanvas = await html2canvas(cover, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#1a2744',
+        logging: false,
+      });
+      const coverImg = coverCanvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(coverImg, 'JPEG', 0, 0, pageWidth, pageHeight);
+    } finally {
+      document.body.removeChild(cover);
+    }
 
     // --- Blessing Pages ---
     const cards = cardsGrid.querySelectorAll('.blessing-card');
