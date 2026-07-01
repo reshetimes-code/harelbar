@@ -42,35 +42,29 @@
     downloadBtn.disabled = true;
     progressContainer.classList.add('active');
 
-    // --- Cover Page ---
-    pdf.setFillColor(26, 39, 68);
-    pdf.rect(0, 0, pageWidth, pageHeight, 'F');
+    // --- Cover Page (rendered as image for Hebrew support) ---
+    const coverEl = document.getElementById('pdf-cover');
+    document.getElementById('cover-date').textContent = new Date().toLocaleDateString('he-IL');
+    document.getElementById('cover-count').textContent = blessings.length + ' ברכות מהלב';
 
-    pdf.setDrawColor(212, 168, 83);
-    pdf.setLineWidth(1);
-    pdf.rect(10, 10, pageWidth - 20, pageHeight - 20);
-    pdf.rect(14, 14, pageWidth - 28, pageHeight - 28);
+    // Make visible for html2canvas
+    coverEl.style.opacity = '1';
+    coverEl.style.zIndex = '9999';
+    await new Promise(r => setTimeout(r, 100));
 
-    pdf.setFont('Helvetica', 'bold');
-    pdf.setTextColor(212, 168, 83);
-    pdf.setFontSize(36);
-    pdf.text('ספר הברכות', pageWidth / 2, 100, { align: 'center' });
+    const coverCanvas = await html2canvas(coverEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#1a2744',
+      logging: false,
+    });
 
-    pdf.setFontSize(24);
-    pdf.setTextColor(240, 214, 138);
-    pdf.text('בר המצווה של הראלי', pageWidth / 2, 130, { align: 'center' });
+    // Hide again
+    coverEl.style.opacity = '0';
+    coverEl.style.zIndex = '-1';
 
-    pdf.setFontSize(16);
-    pdf.setTextColor(200, 200, 200);
-    const dateStr = new Date().toLocaleDateString('he-IL');
-    pdf.text(dateStr, pageWidth / 2, 160, { align: 'center' });
-
-    pdf.setFontSize(14);
-    pdf.text(`${blessings.length} ברכות מהלב`, pageWidth / 2, 180, { align: 'center' });
-
-    pdf.setFontSize(60);
-    pdf.setTextColor(212, 168, 83);
-    pdf.text('✡', pageWidth / 2, 230, { align: 'center' });
+    const coverImg = coverCanvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(coverImg, 'JPEG', 0, 0, pageWidth, pageHeight);
 
     // --- Blessing Pages ---
     const cards = cardsGrid.querySelectorAll('.blessing-card');

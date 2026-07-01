@@ -37,7 +37,7 @@
         <div class="admin-header-actions">
           <a href="index.html" class="btn btn-secondary btn-sm">דף הברכות</a>
           <a href="screen.html" class="btn btn-secondary btn-sm">מצגת</a>
-          <a href="qr.html" class="btn btn-secondary btn-sm">QR Codes</a>
+          <button class="btn btn-secondary btn-sm" id="show-qr-btn">QR מצגת</button>
           <a href="book.html" class="btn btn-secondary btn-sm">ספר ברכות</a>
           <button class="btn btn-secondary btn-sm" id="logout-btn">התנתק</button>
         </div>
@@ -92,8 +92,37 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js"></script>
+  <!-- QR Modal -->
+  <div id="qr-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; display:none; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:16px; padding:32px; text-align:center; max-width:350px;">
+      <h3 style="font-family:'Assistant',sans-serif; color:#1a1a2e; margin-bottom:8px;">📱 ניהול מהטלפון</h3>
+      <p style="color:#666; font-size:0.85rem; margin-bottom:16px;">סרקו עם הטלפון כדי לנהל ברכות למסך</p>
+      <div id="qr-screen-canvas" style="display:inline-block;"></div>
+      <p style="color:#999; font-size:0.8rem; margin-top:12px;">hchc.co.il/admin.html</p>
+      <button onclick="document.getElementById('qr-modal').style.display='none'" style="margin-top:16px; padding:8px 24px; background:var(--gold); color:#1a1a2e; border:none; border-radius:8px; font-family:'Assistant',sans-serif; font-weight:700; cursor:pointer;">סגור</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/templates.js"></script>
   <script src="js/admin.js"></script>
+  <script>
+    document.getElementById('show-qr-btn').addEventListener('click', function() {
+      const modal = document.getElementById('qr-modal');
+      modal.style.display = 'flex';
+      const container = document.getElementById('qr-screen-canvas');
+      if (!container.dataset.rendered) {
+        new QRCode(container, {
+          text: 'https://hchc.co.il/screen.html',
+          width: 250,
+          height: 250,
+          colorDark: '#0c1425',
+          colorLight: '#ffffff'
+        });
+        container.dataset.rendered = '1';
+      }
+    });
+  </script>
 </body>
 </html>

@@ -110,7 +110,7 @@
       <div class="qr-card">
         <h2>✍️ כתיבת ברכה</h2>
         <p>לאורחים - סרקו וכתבו ברכה</p>
-        <canvas id="qr-guests"></canvas>
+        <div id="qr-guests" style="display:inline-block;"></div>
         <div class="qr-url">hchc.co.il</div>
         <button class="qr-download" onclick="downloadQR('qr-guests', 'qr-bless')">הורידו QR</button>
       </div>
@@ -118,7 +118,7 @@
       <div class="qr-card">
         <h2>🖥 מסך ברכות</h2>
         <p>חיבור המסך למצגת</p>
-        <canvas id="qr-screen"></canvas>
+        <div id="qr-screen" style="display:inline-block;"></div>
         <div class="qr-url">hchc.co.il/screen.html</div>
         <button class="qr-download" onclick="downloadQR('qr-screen', 'qr-screen')">הורידו QR</button>
       </div>
@@ -126,7 +126,7 @@
       <div class="qr-card">
         <h2>⚙ פאנל ניהול</h2>
         <p>כניסה לניהול ברכות</p>
-        <canvas id="qr-admin"></canvas>
+        <div id="qr-admin" style="display:inline-block;"></div>
         <div class="qr-url">hchc.co.il/admin.html</div>
         <button class="qr-download" onclick="downloadQR('qr-admin', 'qr-admin')">הורידו QR</button>
       </div>
@@ -135,31 +135,20 @@
     <a href="admin.html" class="qr-back">← חזרה לפאנל ניהול</a>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
-    QRCode.toCanvas(document.getElementById('qr-guests'), 'https://hchc.co.il', {
-      width: 250,
-      margin: 2,
-      color: { dark: '#0c1425', light: '#ffffff' }
-    });
+    var qrOpts = { width: 250, height: 250, colorDark: '#0c1425', colorLight: '#ffffff' };
 
-    QRCode.toCanvas(document.getElementById('qr-screen'), 'https://hchc.co.il/screen.html', {
-      width: 250,
-      margin: 2,
-      color: { dark: '#0c1425', light: '#ffffff' }
-    });
+    new QRCode(document.getElementById('qr-guests'), Object.assign({ text: 'https://hchc.co.il' }, qrOpts));
+    new QRCode(document.getElementById('qr-screen'), Object.assign({ text: 'https://hchc.co.il/screen.html' }, qrOpts));
+    new QRCode(document.getElementById('qr-admin'), Object.assign({ text: 'https://hchc.co.il/admin.html' }, qrOpts));
 
-    QRCode.toCanvas(document.getElementById('qr-admin'), 'https://hchc.co.il/admin.html', {
-      width: 250,
-      margin: 2,
-      color: { dark: '#0c1425', light: '#ffffff' }
-    });
-
-    function downloadQR(canvasId, filename) {
-      const canvas = document.getElementById(canvasId);
-      const link = document.createElement('a');
+    function downloadQR(containerId, filename) {
+      var img = document.getElementById(containerId).querySelector('img');
+      if (!img) return;
+      var link = document.createElement('a');
       link.download = filename + '.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = img.src;
       link.click();
     }
   </script>

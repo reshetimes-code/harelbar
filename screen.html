@@ -103,7 +103,26 @@
   <div class="screen-container" id="screen">
     <div class="waiting-screen" id="waiting">
       <h1>ברכות לכבוד הראל</h1>
-      <p>ממתינים לברכות...</p>
+      <p style="margin-bottom:32px;">סרקו את הקוד וכתבו ברכה</p>
+      <div id="waiting-qr" style="background:#fff; padding:16px; border-radius:16px; display:inline-block;"></div>
+      <p style="margin-top:16px; color:rgba(255,255,255,0.3); font-size:0.9rem;">hchc.co.il</p>
+    </div>
+
+    <!-- Floating QR button during slideshow -->
+    <div id="qr-floating" style="display:none; position:fixed; bottom:24px; left:24px; z-index:50; cursor:pointer;" onclick="toggleQROverlay()">
+      <div style="background:rgba(255,255,255,0.1); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.15); border-radius:12px; padding:8px; width:80px; height:80px;">
+        <div id="floating-qr-mini"></div>
+      </div>
+    </div>
+
+    <!-- QR overlay when clicked -->
+    <div id="qr-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:200; display:none; align-items:center; justify-content:center; cursor:pointer;" onclick="this.style.display='none'">
+      <div style="text-align:center;" onclick="event.stopPropagation()">
+        <h2 style="color:var(--gold-light); font-family:Assistant,sans-serif; font-size:2rem; margin-bottom:8px;">כתבו ברכה להראל!</h2>
+        <p style="color:rgba(255,255,255,0.5); margin-bottom:24px; font-size:1.1rem;">סרקו את הקוד עם הטלפון</p>
+        <div id="overlay-qr" style="background:#fff; padding:20px; border-radius:16px; display:inline-block;"></div>
+        <p style="margin-top:16px; color:rgba(255,255,255,0.3); font-size:0.9rem;">hchc.co.il</p>
+      </div>
     </div>
   </div>
 
