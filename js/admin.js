@@ -17,8 +17,6 @@
   const blessingsList = document.getElementById('blessings-list');
   const emptyAdmin = document.getElementById('empty-admin');
 
-  const exportBtn = document.getElementById('export-btn');
-  const importInput = document.getElementById('import-input');
   const clearBtn = document.getElementById('clear-btn');
 
   // Check session
@@ -168,29 +166,6 @@
     showConfirm(`למחוק את הברכה של ${name}?`, 'פעולה זו לא ניתנת לביטול', function() {
       deleteBlessing(id);
     });
-  });
-
-  // Export
-  exportBtn.addEventListener('click', function() {
-    exportDataAsJson();
-  });
-
-  // Import
-  importInput.addEventListener('change', function() {
-    const file = importInput.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      const success = await importDataFromJson(e.target.result);
-      if (success) {
-        showConfirm('הייבוא הושלם בהצלחה', '', null);
-      } else {
-        showConfirm('שגיאה בייבוא', 'הקובץ אינו תקין', null);
-      }
-    };
-    reader.readAsText(file);
-    importInput.value = '';
   });
 
   // Clear all

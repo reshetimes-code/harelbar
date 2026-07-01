@@ -97,34 +97,3 @@ function getStorageUsage() {
   });
 }
 
-function exportDataAsJson() {
-  getAllBlessings().then(blessings => {
-    const blob = new Blob([JSON.stringify(blessings, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'blessings_backup.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-}
-
-function importDataFromJson(jsonString) {
-  try {
-    const data = JSON.parse(jsonString);
-    if (Array.isArray(data)) {
-      // Clear and re-import
-      return clearAllBlessings().then(() => {
-        const promises = data.map(b => {
-          const ref = db.ref(BLESSINGS_REF).push();
-          b.id = ref.key;
-          return ref.set(b);
-        });
-        return Promise.all(promises).then(() => true);
-      });
-    }
-    return Promise.resolve(false);
-  } catch (e) {
-    return Promise.resolve(false);
-  }
-}
