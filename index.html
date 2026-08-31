@@ -3,143 +3,314 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ברכות לבר המצווה של הראל</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>מערכת ברכות</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✡</text></svg>">
+  <style>
+    .page-bg {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #0a1020 0%, var(--navy) 50%, #0a1020 100%);
+      padding: 20px;
+    }
+
+    .top-buttons {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 100;
+      display: flex;
+      gap: 8px;
+    }
+
+    .top-btn {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.7rem;
+      text-decoration: none;
+      font-family: Assistant, sans-serif;
+      cursor: pointer;
+    }
+
+    .top-btn:hover {
+      color: rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.1);
+    }
+
+    /* ===== QR VIEW (desktop/TV) ===== */
+    .qr-view {
+      display: none;
+      text-align: center;
+      width: 100%;
+    }
+
+    .qr-view h1 {
+      font-family: 'Assistant', sans-serif;
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      margin-bottom: 8px;
+    }
+
+    .qr-view .subtitle {
+      font-size: 1.3rem;
+      color: var(--text-secondary);
+      margin-bottom: 40px;
+    }
+
+    .qr-wrapper {
+      background: #fff;
+      border-radius: 24px;
+      padding: 28px;
+      display: inline-block;
+      box-shadow: 0 8px 40px rgba(184,149,62,0.15);
+    }
+
+    .qr-wrapper img {
+      width: 350px;
+      height: 350px;
+    }
+
+    .qr-url {
+      margin-top: 20px;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--gold-light);
+    }
+
+    .qr-hint {
+      margin-top: 12px;
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+
+    /* ===== MOBILE VIEW ===== */
+    .mobile-card {
+      display: none;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      padding: 48px 32px;
+    }
+
+    .mobile-icon {
+      font-size: 3rem;
+      color: var(--gold);
+      opacity: 0.8;
+      margin-bottom: 24px;
+      display: block;
+    }
+
+    .mobile-title {
+      font-family: 'Assistant', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      margin-bottom: 8px;
+    }
+
+    .mobile-subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    .mobile-divider {
+      width: 48px;
+      height: 1px;
+      background: var(--gold);
+      margin: 0 auto 28px;
+      opacity: 0.4;
+    }
+
+    .mobile-btn {
+      display: block;
+      width: 100%;
+      padding: 18px;
+      font-size: 1.3rem;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .mobile-hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 16px;
+    }
+  </style>
 </head>
 <body>
 
-  <!-- CONFETTI CANVAS -->
-  <canvas id="confetti-canvas"></canvas>
-
-  <!-- HEADER -->
-  <header class="event-header">
-    <span class="header-icon">✡</span>
-    <div class="decorative-line"></div>
-    <h1>בר המצווה של הראל</h1>
-    <p class="subtitle">השאירו ברכה מהלב</p>
-    <div class="decorative-line"></div>
-    <span class="header-badge">מזל טוב</span>
-  </header>
-
-  <!-- FORM -->
-  <main class="container" id="form-container">
-    <div class="form-section">
-      <form id="blessing-form" novalidate>
-
-        <div class="form-group" id="name-group">
-          <label for="guest-name">השם שלך</label>
-          <input type="text" id="guest-name" placeholder="הכניסו את שמכם המלא" required>
-          <span class="error-msg" id="name-error">נא להזין שם מלא</span>
-        </div>
-
-        <div class="form-group" id="text-group">
-          <label for="blessing-text">הברכה שלך</label>
-          <textarea id="blessing-text" placeholder="כתבו כאן את הברכה שלכם להראל..." required></textarea>
-          <span class="error-msg" id="text-error">נא לכתוב ברכה</span>
-        </div>
-
-        <div class="form-group" id="photo-group">
-          <label>העלאת תמונה</label>
-          <div class="photo-upload-area" id="photo-area">
-            <input type="file" id="photo-input" accept="image/*">
-            <span class="upload-icon">📷</span>
-            <span class="upload-text">לחצו כאן להעלאת תמונה</span>
-          </div>
-          <span class="error-msg" id="photo-error">נא להעלות תמונה</span>
-        </div>
-
-        <button type="submit" class="btn btn-primary">
-          תצוגה מקדימה
-        </button>
-
-        <button type="button" class="btn btn-secondary share-open-btn" onclick="openShareDialog()" style="width:100%; margin-top:14px;">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color:#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          שתפו לברכה נוספת
-        </button>
-      </form>
-    </div>
-  </main>
-
-  <!-- PREVIEW MODAL -->
-  <div class="modal-overlay" id="preview-modal">
-    <div class="modal-content">
-      <div id="card-preview"></div>
-      <div class="modal-actions">
-        <button class="btn btn-success" id="confirm-btn">שלחו ברכה</button>
-        <button class="btn btn-secondary" id="edit-btn">חזרו לעריכה</button>
-      </div>
-    </div>
+  <!-- Top buttons - always visible -->
+  <div class="top-buttons">
+    <button class="top-btn" id="fullscreen-btn">⛶ מסך מלא</button>
+    <button class="top-btn" id="screen-btn">🖥 מסך</button>
+    <a href="admin.html" class="top-btn" style="text-decoration:none;">⚙ פנל</a>
   </div>
 
-  <!-- SUCCESS STATE -->
-  <div class="container">
-    <div class="success-state" id="success-state">
-      <span class="success-checkmark">✓</span>
-      <h2>הברכה נשלחה בהצלחה</h2>
-      <p>תודה רבה על הברכה החמה</p>
-      <button class="btn btn-primary" id="new-blessing-btn">שלחו ברכה נוספת</button>
-      <button type="button" class="btn btn-secondary" onclick="openShareDialog()" style="width:100%; margin-top:16px;">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color:#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        שתפו לברכה נוספת
+  <div class="page-bg">
+
+    <!-- ===== QR VIEW (shown on non-mobile) ===== -->
+    <div class="qr-view" id="qr-view">
+      <h1>מערכת ברכות</h1>
+      <p class="subtitle">סרקו את הקוד מהטלפון כדי להתחיל</p>
+      <div class="qr-wrapper">
+        <img id="qr-img" alt="QR Code">
+      </div>
+      <p class="qr-url">hchc.co.il</p>
+      <p class="qr-hint">או הכניסו את הכתובת בדפדפן הטלפון</p>
+    </div>
+
+    <!-- ===== MOBILE VIEW ===== -->
+    <div class="mobile-card" id="mobile-view">
+      <span class="mobile-icon">✡</span>
+      <h1 class="mobile-title">מערכת ברכות</h1>
+      <p class="mobile-subtitle">לחצו כדי להתחבר לאירוע</p>
+      <div class="mobile-divider"></div>
+
+      <a href="register.html" class="btn btn-primary mobile-btn">
+        ✍️ פתח אירוע חדש
+      </a>
+
+      <button id="existing-account-btn" style="display:block; width:100%; margin-top:16px; padding:14px; background:rgba(184,149,62,0.15); border:1.5px solid var(--gold); border-radius:var(--radius-sm); color:var(--gold-light); font-family:Assistant,sans-serif; font-size:1.05rem; font-weight:700; cursor:pointer; transition:all 0.2s;">
+        🔑 יש לי כבר חשבון
       </button>
     </div>
-  </div>
 
-  <!-- CROP MODAL -->
-  <div class="modal-overlay" id="crop-modal">
-    <div class="modal-content" style="max-width:90vw; max-height:90vh; padding:16px; background:var(--navy-card); border-radius:var(--radius-lg); border:1px solid var(--navy-border);">
-      <p style="text-align:center; margin-bottom:12px; color:var(--text-secondary); font-size:0.9rem;">חתכו את התמונה לריבוע</p>
-      <div style="max-height:60vh; overflow:hidden;">
-        <img id="crop-image" style="max-width:100%; display:block;">
-      </div>
-      <div class="modal-actions" style="margin-top:14px;">
-        <button class="btn btn-success" id="crop-confirm">אישור</button>
-        <button class="btn btn-secondary" id="crop-cancel">ביטול</button>
-      </div>
-    </div>
   </div>
-
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/storage.js"></script>
-  <script src="js/templates.js"></script>
-  <script src="js/guest.js"></script>
-  <script src="js/share.js"></script>
-  <script src="js/confetti.js"></script>
   <script>
-    if (!sessionStorage.getItem('welcome_shown')) {
+    var isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      document.getElementById('mobile-view').style.display = 'block';
+    } else {
+      document.getElementById('qr-view').style.display = 'block';
+      document.getElementById('qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=' + encodeURIComponent('https://hchc.co.il');
+
+      // Listen for NEW events created after page load
+      var existingEvents = {};
+      db.ref('events').once('value', function(snap) {
+        var data = snap.val();
+        if (data) Object.keys(data).forEach(function(k) { existingEvents[k] = true; });
+        db.ref('events').on('child_added', function(childSnap) {
+          if (!existingEvents[childSnap.key]) {
+            window.location.href = 'screen.html?event=' + childSnap.key;
+          }
+        });
+      });
+    }
+
+    // Screen button with password
+    function showPasswordDialog(title, onSuccess) {
       Swal.fire({
-        html: `
-          <div dir="rtl" style="text-align:center; padding:8px 0;">
-            <div style="width:56px; height:56px; border-radius:50%; background:rgba(184,149,62,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.6rem; color:#d4b065;">✡</div>
-            <h2 style="color:#fff; font-family:'Assistant',sans-serif; font-weight:800; font-size:1.8rem; margin:0 0 4px; letter-spacing:0.5px;">ברוכים הבאים!</h2>
-            <p style="color:#d4b065; font-size:1.3rem; margin:0 0 16px; font-weight:600;">בר המצווה של הראל בן 13</p>
-            <div style="width:40px; height:1px; background:#d4b065; margin:0 auto 16px; opacity:0.4;"></div>
-            <p style="color:rgba(255,255,255,0.6); font-size:1.1rem; line-height:2; margin:0;">
-              כתבו ברכה עם תמונה והיא תעלה למסך<br>
-              בסוף האירוע ניצור מהברכות אלבום מזכרת
-            </p>
-          </div>
-        `,
+        html: '<div dir="rtl" style="text-align:center;">' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.5rem; margin:0 0 16px;">' + title + '</h2>' +
+          '<input type="password" id="swal-pwd" placeholder="סיסמה" style="width:100%; padding:14px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1.3rem; background:rgba(255,255,255,0.08); color:#fff; text-align:center; letter-spacing:3px;">' +
+          '<p id="swal-pwd-error" style="color:#e55; font-size:0.9rem; margin-top:8px; display:none;">סיסמה שגויה</p>' +
+          '</div>',
         background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
         border: '1px solid rgba(255,255,255,0.15)',
-        color: '#fff',
-        confirmButtonText: 'בואו נתחיל',
+        confirmButtonText: 'כניסה',
         confirmButtonColor: '#b8953e',
+        showCancelButton: true,
+        cancelButtonText: 'ביטול',
         width: 380,
-        padding: '28px 24px 20px',
-        backdrop: 'rgba(0,0,0,0.85)',
-        showClass: { popup: 'swal2-show' },
+        preConfirm: function() {
+          var pwd = document.getElementById('swal-pwd').value.trim();
+          if (pwd !== '8773') {
+            document.getElementById('swal-pwd-error').style.display = 'block';
+            return false;
+          }
+          return true;
+        },
+        didOpen: function() {
+          document.getElementById('swal-pwd').focus();
+        }
+      }).then(function(result) {
+        if (result.isConfirmed) onSuccess();
       });
-      sessionStorage.setItem('welcome_shown', 'true');
     }
+
+    // Existing account button
+    var existBtn = document.getElementById('existing-account-btn');
+    if (existBtn) {
+      existBtn.addEventListener('click', function() {
+        var pwd = prompt('הכניסו סיסמה:');
+        if (!pwd) return;
+        pwd = pwd.trim();
+        db.ref('passwords').once('value', function(snap) {
+          var data = snap.val();
+          if (!data) { alert('סיסמה שגויה'); return; }
+          var foundId = null;
+          Object.keys(data).forEach(function(evId) {
+            if (String(data[evId]) === pwd) foundId = evId;
+          });
+          if (foundId) {
+            sessionStorage.setItem('sub_admin_event', foundId);
+            window.location.href = 'admin.html?event=' + foundId;
+          } else {
+            alert('סיסמה שגויה');
+          }
+        });
+      });
+    }
+
+    // Fullscreen toggle (like F11, but works as a button click)
+    var fullscreenBtn = document.getElementById('fullscreen-btn');
+    if (fullscreenBtn) {
+      fullscreenBtn.addEventListener('click', function() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(function() {});
+        } else {
+          document.exitFullscreen();
+        }
+      });
+      document.addEventListener('fullscreenchange', function() {
+        fullscreenBtn.textContent = document.fullscreenElement ? '⛶ יציאה ממסך מלא' : '⛶ מסך מלא';
+      });
+    }
+
+    var screenBtn = document.getElementById('screen-btn');
+    if (screenBtn) screenBtn.addEventListener('click', function() {
+      showPasswordDialog('כניסה למסך', function() {
+        db.ref('events').limitToLast(1).once('value', function(snapshot) {
+          if (snapshot.val()) {
+            var eventId = Object.keys(snapshot.val())[0];
+            window.location.href = 'screen.html?event=' + eventId;
+          } else {
+            // No events - show QR and wait
+            document.querySelector('.page-bg').innerHTML =
+              '<div style="text-align:center;">' +
+                '<h1 style="font-family:Assistant,sans-serif; font-size:3rem; font-weight:800; color:var(--gold-light); margin-bottom:8px;">מערכת ברכות</h1>' +
+                '<p style="font-size:1.3rem; color:var(--text-secondary); margin-bottom:40px;">סרקו את הקוד מהטלפון כדי להתחיל</p>' +
+                '<div style="background:#fff; border-radius:24px; padding:28px; display:inline-block;">' +
+                  '<img src="https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=' + encodeURIComponent('https://hchc.co.il') + '" style="width:350px; height:350px;" alt="QR">' +
+                '</div>' +
+                '<p style="margin-top:20px; font-size:1.8rem; font-weight:700; color:var(--gold-light);">hchc.co.il</p>' +
+              '</div>';
+            db.ref('events').on('child_added', function(childSnap) {
+              window.location.href = 'screen.html?event=' + childSnap.key;
+            });
+          }
+        });
+      });
+    });
+
   </script>
 </body>
 </html>

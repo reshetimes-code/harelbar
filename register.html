@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>מערכת ברכות - הרשמה</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✡</text></svg>">
+  <style>
+    .register-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #0a1020 0%, var(--navy) 50%, #0a1020 100%);
+      padding: 20px;
+    }
+
+    .register-card {
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+      padding: 40px 32px;
+    }
+
+    .register-icon {
+      font-size: 3rem;
+      color: var(--gold);
+      opacity: 0.8;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .register-title {
+      font-family: 'Assistant', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      margin-bottom: 8px;
+    }
+
+    .register-subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+      font-weight: 400;
+    }
+
+    .register-divider {
+      width: 48px;
+      height: 1px;
+      background: var(--gold);
+      margin: 0 auto 28px;
+      opacity: 0.4;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+      text-align: right;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-sm);
+      font-family: 'Assistant', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 500;
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-group input::placeholder {
+      color: rgba(255,255,255,0.3);
+      font-size: 0.95rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px rgba(184,149,62,0.15);
+    }
+
+    .form-group input[type="tel"] {
+      direction: ltr;
+      text-align: center;
+      letter-spacing: 1.5px;
+    }
+
+    .form-group input[type="date"] {
+      direction: ltr;
+      text-align: center;
+      color-scheme: dark;
+      box-sizing: border-box;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .form-group.error input {
+      border-color: #e55;
+    }
+
+    .form-error {
+      color: #e55;
+      font-size: 0.85rem;
+      margin-top: 4px;
+      display: none;
+      font-weight: 600;
+    }
+
+    .form-group.error .form-error {
+      display: block;
+    }
+
+    .register-btn {
+      width: 100%;
+      margin-top: 24px;
+      padding: 16px;
+      font-size: 1.2rem;
+    }
+
+    .register-loading {
+      display: none;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .register-loading.active {
+      display: block;
+    }
+
+    .register-loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .register-loading p {
+      color: var(--text-secondary);
+      font-size: 1.1rem;
+    }
+
+    .admin-link {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 100;
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: rgba(255,255,255,0.4);
+      font-size: 0.7rem;
+      text-decoration: none;
+      font-family: Assistant, sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <a href="admin.html" class="admin-link">⚙ ניהול</a>
+
+  <div class="register-page">
+    <div class="register-card">
+      <span class="register-icon">✡</span>
+      <h1 class="register-title">מערכת ברכות</h1>
+      <p class="register-subtitle">פתחו חשבון ברכות לאירוע שלכם</p>
+      <div class="register-divider"></div>
+
+      <form id="register-form">
+        <div class="form-group" id="group-organizer-name">
+          <label>שם המארגן</label>
+          <input type="text" id="organizer-name" placeholder="השם המלא שלך" autocomplete="name">
+          <p class="form-error">נא להזין שם</p>
+        </div>
+
+        <div class="form-group" id="group-organizer-phone">
+          <label>טלפון</label>
+          <input type="tel" id="organizer-phone" placeholder="050-0000000" autocomplete="tel">
+          <p class="form-error">נא להזין מספר טלפון</p>
+        </div>
+
+        <div class="form-group" id="group-celebrant-name">
+          <label>שם החוגג/ת</label>
+          <input type="text" id="celebrant-name" placeholder="שם בעל/ת השמחה">
+          <p class="form-error">נא להזין שם חוגג</p>
+        </div>
+
+        <div class="form-group" id="group-event-date">
+          <label>תאריך האירוע</label>
+          <input type="date" id="event-date">
+          <p class="form-error">נא לבחור תאריך</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary register-btn">צרו חשבון ברכות</button>
+      </form>
+
+      <div class="register-loading" id="loading-state">
+        <div class="spinner"></div>
+        <p>יוצרים את האירוע שלכם...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/storage.js"></script>
+  <script>
+    const form = document.getElementById('register-form');
+    const loadingState = document.getElementById('loading-state');
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const organizerName = document.getElementById('organizer-name').value.trim();
+      const organizerPhone = document.getElementById('organizer-phone').value.trim();
+      const celebrantName = document.getElementById('celebrant-name').value.trim();
+      const eventDate = document.getElementById('event-date').value;
+
+      // Validate
+      let valid = true;
+
+      if (!organizerName) {
+        document.getElementById('group-organizer-name').classList.add('error');
+        valid = false;
+      }
+      if (!organizerPhone || organizerPhone.length < 9) {
+        document.getElementById('group-organizer-phone').classList.add('error');
+        valid = false;
+      }
+      if (!celebrantName) {
+        document.getElementById('group-celebrant-name').classList.add('error');
+        valid = false;
+      }
+      if (!eventDate) {
+        document.getElementById('group-event-date').classList.add('error');
+        valid = false;
+      }
+
+      if (!valid) return;
+
+      // Show loading
+      form.style.display = 'none';
+      loadingState.classList.add('active');
+
+      try {
+        const eventId = await createEvent({
+          organizerName,
+          organizerPhone,
+          celebrantName,
+          eventDate
+        });
+
+        // Save eventId for this session
+        sessionStorage.setItem('eventId', eventId);
+        sessionStorage.setItem('isOrganizer', 'true');
+
+        // Go to blessing form
+        window.location.href = '/e/' + eventId;
+      } catch (err) {
+        console.error('Error creating event:', err);
+        form.style.display = 'block';
+        loadingState.classList.remove('active');
+        alert('שגיאה ביצירת האירוע. נסו שוב.');
+      }
+    });
+
+    // Clear errors on input
+    document.querySelectorAll('.form-group input').forEach(input => {
+      input.addEventListener('input', function() {
+        this.closest('.form-group').classList.remove('error');
+      });
+    });
+  </script>
+</body>
+</html>

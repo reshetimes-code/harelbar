@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מסך מצגת - בר המצווה של הראל</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>מסך מצגת</title>
+  <link rel="stylesheet" href="/css/style.css?v=3">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <style>
     body {
@@ -19,11 +19,6 @@
       width: 100vw;
       height: 100vh;
       position: relative;
-    }
-
-    .screen-container {
-      width: 100vw;
-      height: 100vh;
       overflow: hidden;
     }
 
@@ -32,10 +27,29 @@
       inset: 0;
       z-index: 1;
       opacity: 0;
-      transform: scale(1.05);
-      filter: blur(8px);
-      transition: opacity 1.5s ease, transform 1.5s ease, filter 1.5s ease;
+      transform: scale(1.08) translateY(18px);
+      filter: blur(14px) saturate(1.25);
+      transition: opacity 1.7s cubic-bezier(0.16,1,0.3,1), transform 1.7s cubic-bezier(0.16,1,0.3,1), filter 1.7s cubic-bezier(0.16,1,0.3,1);
       overflow: hidden;
+      --slide-a: rgba(91, 141, 239, 0.32);
+      --slide-b: rgba(45, 212, 191, 0.24);
+      --slide-c: rgba(244, 198, 94, 0.18);
+      --slide-accent: #d4b065;
+    }
+
+    .screen-card::before {
+      content: '';
+      position: absolute;
+      inset: -12%;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 18% 24%, var(--slide-a) 0%, transparent 34%),
+        radial-gradient(circle at 80% 18%, var(--slide-b) 0%, transparent 30%),
+        radial-gradient(circle at 50% 86%, var(--slide-c) 0%, transparent 38%);
+      opacity: 0;
+      transform: scale(1.12) rotate(-2deg);
+      transition: opacity 1.7s cubic-bezier(0.16,1,0.3,1), transform 6s ease;
     }
 
     .screen-card.active {
@@ -45,12 +59,96 @@
       filter: blur(0);
     }
 
+    .screen-card.active::before {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+
+    .screen-card.theme-sunrise {
+      --slide-a: rgba(255, 132, 107, 0.34);
+      --slide-b: rgba(255, 205, 87, 0.26);
+      --slide-c: rgba(99, 210, 255, 0.18);
+      --slide-accent: #ffd166;
+    }
+
+    .screen-card.theme-lagoon {
+      --slide-a: rgba(33, 197, 243, 0.34);
+      --slide-b: rgba(47, 229, 168, 0.25);
+      --slide-c: rgba(255, 255, 255, 0.10);
+      --slide-accent: #7ee7d1;
+    }
+
+    .screen-card.theme-orchid {
+      --slide-a: rgba(187, 134, 252, 0.32);
+      --slide-b: rgba(255, 124, 183, 0.24);
+      --slide-c: rgba(255, 214, 102, 0.16);
+      --slide-accent: #f4a7d8;
+    }
+
+    .screen-card.theme-meadow {
+      --slide-a: rgba(94, 234, 158, 0.30);
+      --slide-b: rgba(125, 211, 252, 0.24);
+      --slide-c: rgba(250, 204, 21, 0.17);
+      --slide-accent: #9ef0b5;
+    }
+
+    .screen-card.theme-royal {
+      --slide-a: rgba(96, 165, 250, 0.34);
+      --slide-b: rgba(167, 139, 250, 0.25);
+      --slide-c: rgba(251, 191, 36, 0.16);
+      --slide-accent: #a8c7ff;
+    }
+
+    .screen-card.theme-rose {
+      --slide-a: rgba(251, 113, 133, 0.31);
+      --slide-b: rgba(251, 191, 36, 0.22);
+      --slide-c: rgba(45, 212, 191, 0.17);
+      --slide-accent: #ffb3c1;
+    }
+
     .screen-card .blessing-card {
       width: 100vw;
       height: 100vh;
       max-width: 100vw;
       max-height: 100vh;
       overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    .screen-image-slide {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse at 50% 30%, rgba(26,58,110,0.55) 0%, rgba(10,26,58,0.72) 42%, rgba(0,0,0,0.96) 100%),
+        #000;
+      overflow: hidden;
+    }
+
+    .screen-image-slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(2px 2px at 18% 22%, rgba(212,176,101,0.35) 50%, transparent 100%),
+        radial-gradient(2px 2px at 72% 18%, rgba(100,180,255,0.25) 50%, transparent 100%),
+        radial-gradient(2px 2px at 84% 76%, rgba(212,176,101,0.28) 50%, transparent 100%);
+      opacity: 0.8;
+    }
+
+    .screen-image-slide img {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+      width: 92vw;
+      height: 92vh;
+      object-fit: contain;
     }
 
     .waiting-screen {
@@ -60,20 +158,192 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(180deg, #0a1020 0%, #0c1425 100%);
+      background: radial-gradient(ellipse at 50% 20%, #1a3a6e 0%, #122a52 30%, #0a1a3a 60%, #061228 100%);
       color: var(--gold-light);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Animated sparkle particles */
+    .waiting-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(2px 2px at 10% 20%, rgba(212,176,101,0.5) 50%, transparent 100%),
+        radial-gradient(2px 2px at 25% 60%, rgba(100,180,255,0.4) 50%, transparent 100%),
+        radial-gradient(2px 2px at 40% 15%, rgba(255,255,255,0.4) 50%, transparent 100%),
+        radial-gradient(2px 2px at 55% 75%, rgba(212,176,101,0.5) 50%, transparent 100%),
+        radial-gradient(2px 2px at 70% 35%, rgba(100,180,255,0.3) 50%, transparent 100%),
+        radial-gradient(2px 2px at 85% 55%, rgba(212,176,101,0.4) 50%, transparent 100%),
+        radial-gradient(3px 3px at 15% 80%, rgba(100,180,255,0.3) 50%, transparent 100%),
+        radial-gradient(2px 2px at 90% 10%, rgba(255,255,255,0.4) 50%, transparent 100%),
+        radial-gradient(2px 2px at 50% 45%, rgba(212,176,101,0.3) 50%, transparent 100%),
+        radial-gradient(2px 2px at 30% 90%, rgba(100,180,255,0.3) 50%, transparent 100%);
+      animation: twinkle 4s ease-in-out infinite alternate;
+    }
+
+    @keyframes twinkle {
+      0% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    /* Confetti pieces on sides */
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      opacity: 0.6;
+      z-index: 1;
+    }
+    .confetti-piece:nth-child(1) { left: 3%; top: 10%; width: 12px; height: 5px; background: #d4b065; transform: rotate(25deg); animation: confetti-fall 8s linear infinite; animation-delay: 0s; }
+    .confetti-piece:nth-child(2) { left: 8%; top: 5%; width: 8px; height: 8px; background: #4a90d9; border-radius: 50%; animation: confetti-fall 10s linear infinite; animation-delay: 1s; }
+    .confetti-piece:nth-child(3) { left: 5%; top: 15%; width: 14px; height: 6px; background: #e8c547; transform: rotate(-15deg); animation: confetti-fall 7s linear infinite; animation-delay: 3s; }
+    .confetti-piece:nth-child(4) { left: 12%; top: 8%; width: 6px; height: 12px; background: #6bb3f0; transform: rotate(45deg); animation: confetti-fall 9s linear infinite; animation-delay: 2s; }
+    .confetti-piece:nth-child(5) { left: 2%; top: 25%; width: 10px; height: 4px; background: #f0d68a; transform: rotate(60deg); animation: confetti-fall 11s linear infinite; animation-delay: 4s; }
+    .confetti-piece:nth-child(6) { right: 3%; top: 12%; width: 12px; height: 5px; background: #d4b065; transform: rotate(-30deg); animation: confetti-fall 8s linear infinite; animation-delay: 0.5s; }
+    .confetti-piece:nth-child(7) { right: 7%; top: 3%; width: 8px; height: 8px; background: #4a90d9; border-radius: 50%; animation: confetti-fall 9s linear infinite; animation-delay: 2.5s; }
+    .confetti-piece:nth-child(8) { right: 5%; top: 18%; width: 14px; height: 6px; background: #e8c547; transform: rotate(20deg); animation: confetti-fall 10s linear infinite; animation-delay: 1.5s; }
+    .confetti-piece:nth-child(9) { right: 10%; top: 7%; width: 6px; height: 12px; background: #6bb3f0; transform: rotate(-45deg); animation: confetti-fall 7s linear infinite; animation-delay: 3.5s; }
+    .confetti-piece:nth-child(10) { right: 2%; top: 22%; width: 10px; height: 4px; background: #f0d68a; transform: rotate(-60deg); animation: confetti-fall 12s linear infinite; animation-delay: 5s; }
+    .confetti-piece:nth-child(11) { left: 15%; top: 2%; width: 8px; height: 3px; background: #d4b065; transform: rotate(40deg); animation: confetti-fall 9s linear infinite; animation-delay: 6s; }
+    .confetti-piece:nth-child(12) { right: 15%; top: 0%; width: 10px; height: 10px; background: #4a90d9; border-radius: 50%; animation: confetti-fall 11s linear infinite; animation-delay: 4.5s; }
+
+    @keyframes confetti-fall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0.7; }
+      25% { transform: translateY(25vh) rotate(90deg) translateX(15px); opacity: 0.6; }
+      50% { transform: translateY(50vh) rotate(180deg) translateX(-10px); opacity: 0.5; }
+      75% { transform: translateY(75vh) rotate(270deg) translateX(20px); opacity: 0.4; }
+      100% { transform: translateY(105vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* Decorative gold lines */
+    .waiting-decor-top, .waiting-decor-bottom {
+      position: absolute;
+      width: 200px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(184,149,62,0.4), transparent);
+    }
+    .waiting-decor-top { top: 15%; }
+    .waiting-decor-bottom { bottom: 15%; }
+
+    /* Floating star of david */
+    .waiting-star {
+      position: absolute;
+      font-size: 4rem;
+      opacity: 0.08;
+      color: #6bb3f0;
+      animation: float 6s ease-in-out infinite;
+    }
+    .waiting-star:nth-child(13) { top: 8%; left: 10%; animation-delay: 0s; }
+    .waiting-star:nth-child(14) { top: 12%; right: 12%; animation-delay: 2s; font-size: 3rem; }
+    .waiting-star:nth-child(15) { bottom: 10%; left: 15%; animation-delay: 4s; font-size: 2.5rem; }
+    .waiting-star:nth-child(16) { bottom: 15%; right: 10%; animation-delay: 1s; font-size: 3.5rem; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-15px) rotate(5deg); }
     }
 
     .waiting-screen h1 {
       font-family: 'Assistant', sans-serif;
-      font-size: 3rem;
+      font-size: 3.5rem;
       font-weight: 800;
       margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
+      text-shadow: 0 2px 20px rgba(184,149,62,0.3);
     }
 
     .waiting-screen p {
       color: var(--text-muted);
       font-size: 1.2rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .waiting-screen .waiting-badge {
+      display: inline-block;
+      padding: 8px 32px;
+      border: 1px solid rgba(184,149,62,0.25);
+      border-radius: 100px;
+      font-size: 1.3rem;
+      color: var(--gold-light);
+      font-weight: 600;
+      margin-bottom: 28px;
+      position: relative;
+      z-index: 2;
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(184,149,62,0); }
+      50% { box-shadow: 0 0 20px 4px rgba(184,149,62,0.15); }
+    }
+
+    .waiting-layout {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6vw;
+      width: 100%;
+      max-width: 1200px;
+      padding: 0 5vw;
+      position: relative;
+      z-index: 2;
+    }
+
+    .waiting-left {
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .waiting-right {
+      text-align: center;
+      flex: 1;
+      max-width: 550px;
+    }
+
+    .waiting-event-name {
+      font-family: 'Assistant', sans-serif;
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--gold-light);
+      line-height: 1.3;
+      text-shadow: 0 2px 20px rgba(184,149,62,0.3);
+    }
+
+    .waiting-qr-container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 20px;
+      display: inline-block;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.3), 0 0 60px rgba(184,149,62,0.08);
+    }
+
+    .waiting-divider {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      margin: 20px auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    @media (max-width: 768px) {
+      .waiting-layout {
+        flex-direction: column;
+        gap: 24px;
+      }
+      .waiting-event-name {
+        font-size: 2rem;
+      }
+      .waiting-qr-container img {
+        width: 200px !important;
+        height: 200px !important;
+      }
     }
 
     .swal2-popup.swal-blessing {
@@ -96,49 +366,170 @@
     }
 
     body.show-cursor { cursor: default; }
+
+    #fullscreen-toggle {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 50;
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.6);
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.3s ease, background 0.2s ease, color 0.2s ease;
+      opacity: 0.5;
+    }
+
+    #fullscreen-toggle:hover {
+      opacity: 1;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
 
+
   <div class="screen-container" id="screen">
     <div class="waiting-screen" id="waiting">
-      <h1>ברכות לכבוד הראל</h1>
-      <p style="margin-bottom:32px; font-size:1.5rem;">סרקו את הקוד וכתבו ברכה</p>
-      <div style="background:#fff; padding:20px; border-radius:20px; display:inline-block;">
-        <img id="waiting-qr-img" style="width:280px; height:280px;" alt="QR">
+      <!-- Confetti pieces -->
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <div class="confetti-piece"></div>
+      <!-- Stars -->
+      <span class="waiting-star">✡</span>
+      <span class="waiting-star">✡</span>
+      <span class="waiting-star">✡</span>
+      <span class="waiting-star">✡</span>
+      <div class="waiting-decor-top"></div>
+      <div class="waiting-decor-bottom"></div>
+
+      <div class="waiting-layout">
+        <!-- Right side (RTL): Event name -->
+        <div class="waiting-right">
+          <span class="waiting-badge">מזל טוב</span>
+          <div class="waiting-divider"></div>
+          <h1 id="screen-title" class="waiting-event-name">ברכות לכבוד האירוע</h1>
+          <div class="waiting-divider"></div>
+          <p style="color:rgba(255,255,255,0.4); font-size:1.1rem; margin-top:16px;">ממתינים לברכות...</p>
+        </div>
+
+        <!-- Left side (RTL): QR -->
+        <div class="waiting-left">
+          <div class="waiting-qr-container">
+            <img id="waiting-qr-img" style="width:300px; height:300px;" alt="QR">
+          </div>
+          <p style="color:rgba(255,255,255,0.4); font-size:1rem; margin-top:12px;">סרקו את הקוד וכתבו ברכה</p>
+        </div>
       </div>
-      <p style="margin-top:16px; color:rgba(255,255,255,0.4); font-size:1.1rem;">hchc.co.il</p>
     </div>
 
     <!-- Permanent QR in corner during slideshow -->
-    <div id="qr-floating" style="display:none; position:fixed; bottom:24px; left:24px; z-index:50;">
-      <div style="background:#fff; border-radius:12px; padding:6px; box-shadow:0 4px 20px rgba(0,0,0,0.4);">
-        <img id="floating-qr-img" style="width:120px; height:120px;" alt="QR">
+    <div id="qr-floating" style="display:none; position:fixed; top:16px; right:16px; z-index:50;">
+      <div style="background:#fff; border-radius:8px; padding:4px 4px 0 4px; box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+        <img id="floating-qr-img" style="width:90px; height:90px; display:block;" alt="QR">
+        <p style="text-align:center; color:#0c1425; font-size:0.55rem; font-weight:700; margin:0; padding:2px 0 4px; font-family:Assistant,sans-serif;">סרקו לברכה</p>
       </div>
-      <p style="text-align:center; color:rgba(255,255,255,0.4); font-size:0.7rem; margin-top:6px;">סרקו וכתבו ברכה</p>
+      <p id="floating-event-name" style="text-align:center; color:rgba(255,255,255,0.4); font-size:0.55rem; margin-top:4px; max-width:100px; line-height:1.3;"></p>
     </div>
+
+    <!-- Faint fullscreen toggle button -->
+    <button id="fullscreen-toggle" title="מסך מלא">⛶</button>
 
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
-  <script src="js/firebase-config.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/templates.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/storage.js"></script>
+  <script src="/js/templates.js"></script>
   <script>
   (function() {
+    // Get eventId from query string
+    var eventId = getEventIdFromQuery();
+    if (!eventId) {
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:center;"><div style="width:56px;height:56px;border-radius:50%;background:rgba(229,85,85,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:1.8rem;color:#e55;">✕</div><h2 style="color:#fff;font-size:1.6rem;margin:0 0 8px;">לא צוין אירוע</h2></div>',
+        background: '#0c1425', border: '1px solid rgba(229,85,85,0.2)', confirmButtonText: 'חזרה', confirmButtonColor: '#b8953e', allowOutsideClick: false
+      }).then(function() { window.location.href = '/'; });
+      return;
+    }
+
+    // Load event meta and update title
+    getEventMeta(eventId).then(function(meta) {
+      if (!meta) {
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;"><div style="width:56px;height:56px;border-radius:50%;background:rgba(229,85,85,0.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:1.8rem;color:#e55;">✕</div><h2 style="color:#fff;font-size:1.6rem;margin:0 0 8px;">האירוע לא נמצא</h2><p style="color:rgba(255,255,255,0.5);font-size:1rem;">אירוע זה הוסר על ידי המנהל או שאינו קיים יותר</p></div>',
+          background: '#0c1425', border: '1px solid rgba(229,85,85,0.2)', confirmButtonText: 'חזרה לדף הראשי', confirmButtonColor: '#b8953e', allowOutsideClick: false
+        }).then(function() { window.location.href = '/'; });
+        return;
+      }
+      var celebrant = meta.celebrantName || '';
+      document.getElementById('screen-title').textContent = 'ברכות לכבוד ' + celebrant;
+      document.title = 'מסך מצגת - ' + celebrant;
+      // Update floating QR event name
+      var floatingName = document.getElementById('floating-event-name');
+      if (floatingName) floatingName.textContent = celebrant;
+    });
+
+    // Listen for event deletion - redirect to home
+    db.ref('events/' + eventId + '/meta').on('value', function(snap) {
+      if (!snap.exists()) {
+        window.location.replace('/');
+      }
+    });
+
+    // Listen for force refresh command from admin
+    db.ref('events/' + eventId + '/screenControl/refresh').on('value', function(snap) {
+      if (snap.val() === true) {
+        db.ref('events/' + eventId + '/screenControl/refresh').set(false);
+        window.location.reload();
+      }
+    });
+
+    // Listen for disconnect command from admin
+    db.ref('events/' + eventId + '/screenControl/disconnect').on('value', function(snap) {
+      if (snap.val() === true) {
+        db.ref('events/' + eventId + '/screenControl/disconnect').set(false);
+        window.location.replace('/');
+      }
+    });
+
+
     const screen = document.getElementById('screen');
     const waiting = document.getElementById('waiting');
 
     let blessings = [];
+    let screenImages = [];
+    let imageQueue = [];
+    let lastImageId = null;
+    let blessingsSinceImage = 0;
     let knownIds = new Set();
     let currentIndex = -1;
     let cardA = null;
     let cardB = null;
     let activeCard = 'A';
     let autoTimer = null;
-    const INTERVAL = 8000;
+    let slideIntervalMs = 13000;
+    const slideThemes = ['theme-sunrise', 'theme-lagoon', 'theme-orchid', 'theme-meadow', 'theme-royal', 'theme-rose'];
+    let slideThemeIndex = 0;
 
     cardA = createSlot('card-a');
     cardB = createSlot('card-b');
@@ -153,9 +544,20 @@
 
     function showCard(blessing) {
       const html = renderCard(blessing);
+      showSlideHtml(html);
+    }
+
+    function showImageSlide(image) {
+      showSlideHtml('<div class="screen-image-slide"><img src="' + image.dataUrl + '" alt=""></div>');
+    }
+
+    function showSlideHtml(html) {
       const next = activeCard === 'A' ? cardB : cardA;
       const current = activeCard === 'A' ? cardA : cardB;
+      const theme = slideThemes[slideThemeIndex % slideThemes.length];
+      slideThemeIndex++;
 
+      next.className = 'screen-card ' + theme;
       next.innerHTML = html;
 
       requestAnimationFrame(() => {
@@ -169,13 +571,21 @@
 
     function nextCard() {
       if (blessings.length === 0) return;
+
+      if (screenImages.length > 0 && blessingsSinceImage >= 2) {
+        showImageSlide(getNextScreenImage());
+        blessingsSinceImage = 0;
+        return;
+      }
+
       currentIndex = (currentIndex + 1) % blessings.length;
       showCard(blessings[currentIndex]);
+      blessingsSinceImage++;
     }
 
     function startAutoPlay() {
       if (autoTimer) clearInterval(autoTimer);
-      autoTimer = setInterval(nextCard, INTERVAL);
+      autoTimer = setInterval(nextCard, slideIntervalMs);
     }
 
     function showNewBlessingAlert(blessing) {
@@ -193,8 +603,62 @@
 
     let slideshowStarted = false;
 
+    db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').on('value', function(snap) {
+      var seconds = Number(snap.val());
+      if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
+        seconds = 13;
+      }
+      slideIntervalMs = Math.round(seconds) * 1000;
+      if (slideshowStarted) {
+        startAutoPlay();
+      }
+    });
+
+    function shuffleImages(images) {
+      var arr = images.slice();
+      for (var i = arr.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+      }
+      if (arr.length > 1 && lastImageId && arr[0].id === lastImageId) {
+        arr.push(arr.shift());
+      }
+      return arr;
+    }
+
+    function getNextScreenImage() {
+      if (imageQueue.length === 0) {
+        imageQueue = shuffleImages(screenImages);
+      }
+      var next = imageQueue.shift();
+      if (screenImages.length > 1 && next && next.id === lastImageId) {
+        imageQueue.push(next);
+        next = imageQueue.shift();
+      }
+      if (next) lastImageId = next.id;
+      return next || screenImages[0];
+    }
+
+    db.ref('events/' + eventId + '/screenImages').on('value', function(snap) {
+      var data = snap.val() || {};
+      screenImages = Object.keys(data).map(function(key) {
+        return Object.assign({ id: key }, data[key]);
+      }).filter(function(img) {
+        return img.dataUrl && typeof img.dataUrl === 'string';
+      }).sort(function(a, b) {
+        return (a.createdAt || '').localeCompare(b.createdAt || '');
+      });
+      imageQueue = shuffleImages(screenImages);
+      if (!screenImages.some(function(img) { return img.id === lastImageId; })) {
+        lastImageId = null;
+      }
+      if (screenImages.length === 0) blessingsSinceImage = 0;
+    });
+
     // Real-time listener — auto-start when first approved blessing arrives
-    onBlessingsChanged(function(allBlessings) {
+    onBlessingsChanged(eventId, function(allBlessings) {
       const approved = allBlessings.filter(b => b.status === 'approved');
       const newOnes = approved.filter(b => !knownIds.has(b.id));
 
@@ -207,7 +671,12 @@
         document.getElementById('qr-floating').style.display = 'none';
         slideshowStarted = false;
         currentIndex = -1;
+        blessingsSinceImage = 0;
+        knownIds = new Set();
         if (autoTimer) clearInterval(autoTimer);
+        // Clear displayed cards
+        if (cardA) { cardA.classList.remove('active'); cardA.innerHTML = ''; }
+        if (cardB) { cardB.classList.remove('active'); cardB.innerHTML = ''; }
         return;
       }
 
@@ -218,6 +687,7 @@
         document.getElementById('qr-floating').style.display = 'block';
         currentIndex = 0;
         showCard(blessings[0]);
+        blessingsSinceImage = 1;
         startAutoPlay();
         return;
       }
@@ -228,6 +698,7 @@
         showNewBlessingAlert(latest);
         currentIndex = blessings.findIndex(b => b.id === latest.id);
         showCard(latest);
+        blessingsSinceImage = Math.min(blessingsSinceImage + 1, 2);
         startAutoPlay();
       }
     });
@@ -240,14 +711,23 @@
       cursorTimer = setTimeout(() => document.body.classList.remove('show-cursor'), 3000);
     });
 
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    const fullscreenToggleBtn = document.getElementById('fullscreen-toggle');
+    if (fullscreenToggleBtn) {
+      fullscreenToggleBtn.addEventListener('click', toggleFullscreen);
+    }
+
     // Keyboard: F=fullscreen, Space=next
     document.addEventListener('keydown', (e) => {
       if (e.code === 'KeyF') {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen();
-        }
+        toggleFullscreen();
       }
       if (e.code === 'Space') {
         e.preventDefault();
@@ -263,12 +743,29 @@
       el.style.display = 'block';
     }
 
-  })();
+    // Generate QR codes with fallback
+    var eventQrUrl = 'https://hchc.co.il/e/' + eventId;
+    var qrApis = [
+      'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(eventQrUrl),
+      'https://quickchart.io/qr?text=' + encodeURIComponent(eventQrUrl) + '&size=400',
+      'https://chart.googleapis.com/chart?cht=qr&chs=400x400&chl=' + encodeURIComponent(eventQrUrl)
+    ];
 
-  // Generate QR codes using api.qrserver.com (reliable, works everywhere)
-  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent('https://hchc.co.il');
-  document.getElementById('waiting-qr-img').src = qrUrl;
-  document.getElementById('floating-qr-img').src = qrUrl;
+    function loadQrWithFallback(imgEl, apiIndex) {
+      if (apiIndex >= qrApis.length) return;
+      imgEl.onerror = function() {
+        loadQrWithFallback(imgEl, apiIndex + 1);
+      };
+      imgEl.src = qrApis[apiIndex];
+    }
+
+    loadQrWithFallback(document.getElementById('waiting-qr-img'), 0);
+    loadQrWithFallback(document.getElementById('floating-qr-img'), 0);
+    // Update the URL text below the QR
+    var urlText = document.querySelector('.waiting-screen p:last-child');
+    if (urlText) urlText.textContent = 'hchc.co.il/e/' + eventId;
+
+  })();
   </script>
 </body>
 </html>

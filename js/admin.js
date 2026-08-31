@@ -1,6 +1,8 @@
-// ===== ADMIN PANEL LOGIC =====
+// ===== ADMIN PANEL LOGIC (Multi-Tenant) =====
 (function() {
   const ADMIN_PASSWORD = 'oren8773';
+  const SCREEN_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+  const SCREEN_IMAGES_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/screenImages';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -9,80 +11,803 @@
   const loginError = document.getElementById('login-error');
   const logoutBtn = document.getElementById('logout-btn');
 
-  const statTotal = document.getElementById('stat-total');
-  const statToday = document.getElementById('stat-today');
-  const statStorage = document.getElementById('stat-storage');
-  const statPopular = document.getElementById('stat-popular');
-  const listCount = document.getElementById('list-count');
-  const blessingsList = document.getElementById('blessings-list');
-  const emptyAdmin = document.getElementById('empty-admin');
+  // Views
+  const eventsView = document.getElementById('events-view');
+  const eventDetailView = document.getElementById('event-detail-view');
+  const leadsView = document.getElementById('leads-view');
 
-  const clearBtn = document.getElementById('clear-btn');
+  // Current selected event
+  let currentEventId = null;
+  let blessingsUnsubscribe = null;
+  let leadsUnsubscribe = null;
+  let isMainAdmin = false;
+
+  // Check URL param for sub-admin event
+  var urlEvent = new URLSearchParams(window.location.search).get('event');
+  if (urlEvent) {
+    sessionStorage.setItem('sub_admin_event', urlEvent);
+  }
 
   // Check session
   if (sessionStorage.getItem('admin_auth') === 'true') {
+    isMainAdmin = true;
+    showPanel();
+  } else if (sessionStorage.getItem('sub_admin_event')) {
+    isMainAdmin = false;
     showPanel();
   }
 
-  // Login
+  // Login - check main admin OR sub-admin password
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
-    if (passwordInput.value === ADMIN_PASSWORD) {
+    var pwd = passwordInput.value.trim();
+
+    // Check main admin
+    if (pwd === ADMIN_PASSWORD) {
       sessionStorage.setItem('admin_auth', 'true');
+      sessionStorage.setItem('admin_access_password', pwd);
+      isMainAdmin = true;
       loginError.classList.remove('show');
       showPanel();
-    } else {
-      loginError.classList.add('show');
-      passwordInput.value = '';
-      passwordInput.focus();
+      return;
     }
+
+    // Check sub-admin passwords from lightweight /passwords path
+    db.ref('passwords').once('value', function(snap) {
+      var data = snap.val();
+      if (!data) { loginError.classList.add('show'); passwordInput.value = ''; return; }
+      var foundId = null;
+      Object.keys(data).forEach(function(evId) {
+        if (String(data[evId]) === pwd) foundId = evId;
+      });
+      if (foundId) {
+        sessionStorage.setItem('sub_admin_event', foundId);
+        sessionStorage.setItem('admin_access_password', pwd);
+        isMainAdmin = false;
+        loginError.classList.remove('show');
+        showPanel();
+      } else {
+        loginError.classList.add('show');
+        passwordInput.value = '';
+        passwordInput.focus();
+      }
+    });
   });
 
   // Logout
   logoutBtn.addEventListener('click', function() {
     sessionStorage.removeItem('admin_auth');
+    sessionStorage.removeItem('sub_admin_event');
+    sessionStorage.removeItem('admin_access_password');
+    isMainAdmin = false;
     adminPanel.style.display = 'none';
     loginScreen.style.display = 'flex';
     passwordInput.value = '';
+    if (blessingsUnsubscribe) blessingsUnsubscribe();
+    if (leadsUnsubscribe) { leadsUnsubscribe(); leadsUnsubscribe = null; }
   });
 
   function showPanel() {
     loginScreen.style.display = 'none';
     adminPanel.style.display = 'block';
-    // Listen for real-time updates
-    onBlessingsChanged(function(blessings) {
-      updateStats(blessings);
-      renderList(blessings);
+
+    if (isMainAdmin) {
+      showEventsView();
+    } else {
+      // Sub-admin: go directly to their event
+      var subEventId = sessionStorage.getItem('sub_admin_event');
+      if (subEventId) {
+        showEventDetail(subEventId);
+      }
+    }
+  }
+
+  // ===== EVENTS LIST VIEW =====
+  function showEventsView() {
+    eventsView.style.display = 'block';
+    eventDetailView.style.display = 'none';
+    if (leadsView) leadsView.style.display = 'none';
+    if (blessingsUnsubscribe) {
+      blessingsUnsubscribe();
+      blessingsUnsubscribe = null;
+    }
+    if (leadsUnsubscribe) {
+      leadsUnsubscribe();
+      leadsUnsubscribe = null;
+    }
+    currentEventId = null;
+    loadEvents();
+  }
+
+  // ===== LEADS VIEW =====
+  function showLeadsView() {
+    eventsView.style.display = 'none';
+    eventDetailView.style.display = 'none';
+    leadsView.style.display = 'block';
+    loadLeads();
+  }
+
+  function loadLeads() {
+    if (leadsUnsubscribe) {
+      leadsUnsubscribe();
+      leadsUnsubscribe = null;
+    }
+    leadsUnsubscribe = onLeadsChanged(function(leads) {
+      var loader = document.getElementById('leads-loader');
+      if (loader) loader.style.display = 'none';
+
+      document.getElementById('stat-leads-total').textContent = leads.length;
+      document.getElementById('stat-leads-new').textContent = leads.filter(function(l) { return !l.contacted; }).length;
+      document.getElementById('leads-count').textContent = leads.length;
+
+      if (leads.length === 0) {
+        document.getElementById('leads-table').style.display = 'none';
+        document.getElementById('empty-leads').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('empty-leads').style.display = 'none';
+      document.getElementById('leads-table').style.display = 'table';
+
+      var tbody = document.getElementById('leads-tbody');
+      tbody.innerHTML = leads.map(function(lead) {
+        var dateStr = '';
+        if (lead.createdAt) {
+          try { dateStr = new Date(lead.createdAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+        }
+        var sourceLabel = escapeHtml(lead.celebrantName || '') + (lead.eventDate ? ' (' + escapeHtml(lead.eventDate) + ')' : '');
+        var contacted = !!lead.contacted;
+        return '<tr>' +
+          '<td>' + escapeHtml(lead.name || '') + '</td>' +
+          '<td dir="ltr" style="text-align:right;">' + escapeHtml(lead.phone || '') + '</td>' +
+          '<td>' + sourceLabel + '</td>' +
+          '<td>' + dateStr + '</td>' +
+          '<td><span class="event-badge ' + (contacted ? 'active' : 'archived') + '">' + (contacted ? 'טופל' : 'ממתין') + '</span></td>' +
+          '<td>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+              '<a href="tel:' + escapeHtml(lead.phone || '') + '" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);padding:4px 10px;border-radius:6px;font-size:0.8rem;font-family:Assistant,sans-serif;text-decoration:none;">📞 חיוג</a>' +
+              '<button class="lead-whatsapp-btn" data-name="' + escapeHtml(lead.name || '') + '" data-phone="' + escapeHtml(lead.phone || '') + '" style="background:none;border:1px solid rgba(37,211,102,0.3);color:#25D366;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📱 וואטסאפ</button>' +
+              '<button class="lead-toggle-btn" data-lead-id="' + lead.id + '" data-contacted="' + contacted + '" style="background:none;border:1px solid rgba(184,149,62,0.3);color:var(--gold-light);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">' + (contacted ? 'סמן כלא טופל' : 'סמן כטופל') + '</button>' +
+              '<button class="lead-delete-btn" data-lead-id="' + lead.id + '" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">🗑</button>' +
+            '</div>' +
+          '</td>' +
+          '</tr>';
+      }).join('');
     });
   }
 
-  async function updateStats(blessings) {
-    statTotal.textContent = blessings.length;
+  var leadsBtn = document.getElementById('leads-btn');
+  if (leadsBtn) leadsBtn.addEventListener('click', showLeadsView);
 
-    const today = new Date().toDateString();
-    const todayCount = blessings.filter(b => new Date(b.createdAt).toDateString() === today).length;
-    statToday.textContent = todayCount;
+  var backToEventsFromLeadsBtn = document.getElementById('back-to-events-from-leads');
+  if (backToEventsFromLeadsBtn) backToEventsFromLeadsBtn.addEventListener('click', showEventsView);
 
-    const usage = await getStorageUsage();
-    statStorage.textContent = usage.usedKB;
+  var leadsTbody = document.getElementById('leads-tbody');
+  if (leadsTbody) {
+    leadsTbody.addEventListener('click', function(e) {
+      var waBtn = e.target.closest('.lead-whatsapp-btn');
+      if (waBtn) {
+        var name = waBtn.dataset.name;
+        var phone = waBtn.dataset.phone.replace(/[-\s]/g, '');
+        if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+        var msg = encodeURIComponent('שלום ' + name + ', נעים מאוד! אנחנו חוזרים אליכם בעקבות הפרטים שהשארתם, במערכת הברכות, לגבי אירוע שאתם חוגגים בקרוב. האם תרצו לקבל פרטים מלאים מאיתנו?');
+        window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
+        return;
+      }
 
-    if (blessings.length > 0) {
-      const counts = {};
-      blessings.forEach(b => {
-        counts[b.templateId] = (counts[b.templateId] || 0) + 1;
-      });
-      statPopular.textContent = blessings.length + ' ברכות';
-      statPopular.style.fontSize = '0.9rem';
-    } else {
-      statPopular.textContent = '-';
-    }
+      var toggleBtn = e.target.closest('.lead-toggle-btn');
+      if (toggleBtn) {
+        var leadId = toggleBtn.dataset.leadId;
+        var isContacted = toggleBtn.dataset.contacted === 'true';
+        setLeadContacted(leadId, !isContacted);
+        return;
+      }
 
-    listCount.textContent = blessings.length;
+      var delBtn = e.target.closest('.lead-delete-btn');
+      if (delBtn) {
+        var delId = delBtn.dataset.leadId;
+        showConfirm('מחיקת ליד', 'למחוק את הליד הזה לצמיתות?', function() {
+          deleteLead(delId);
+        });
+        return;
+      }
+    });
   }
 
+  function loadEvents() {
+    onEventsChanged(function(events) {
+      const loader = document.getElementById('events-loader');
+      if (loader) loader.style.display = 'none';
+
+      document.getElementById('stat-events-total').textContent = events.length;
+      document.getElementById('stat-events-active').textContent = events.filter(e => (e.meta.status || 'active') === 'active').length;
+      document.getElementById('stat-blessings-total').textContent = events.reduce((sum, e) => sum + e.blessingCount, 0);
+      document.getElementById('events-count').textContent = events.length;
+
+      if (events.length === 0) {
+        document.getElementById('events-table').style.display = 'none';
+        document.getElementById('empty-events').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('empty-events').style.display = 'none';
+      document.getElementById('events-table').style.display = 'table';
+
+      const tbody = document.getElementById('events-tbody');
+      tbody.innerHTML = events.map(function(ev) {
+        var meta = ev.meta;
+        var status = meta.status || 'active';
+        var dateStr = meta.eventDate || '';
+        if (dateStr) {
+          try { dateStr = new Date(dateStr).toLocaleDateString('he-IL'); } catch(e) {}
+        }
+        var createdStr = '';
+        if (meta.createdAt) {
+          try { createdStr = new Date(meta.createdAt).toLocaleDateString('he-IL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); } catch(e) {}
+        }
+        return '<tr class="event-row" data-event-id="' + ev.id + '">' +
+          '<td colspan="6" style="padding:0;">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;" class="event-header-row" data-event-id="' + ev.id + '">' +
+              '<div style="display:flex;align-items:center;gap:12px;">' +
+                '<span class="event-celebrant">' + escapeHtml(meta.celebrantName || '') + '</span>' +
+                '<span class="event-badge ' + status + '">' + (status === 'active' ? 'פעיל' : 'ארכיון') + '</span>' +
+                '<span style="color:var(--text-muted);font-size:0.8rem;">' + ev.blessingCount + ' ברכות</span>' +
+              '</div>' +
+              '<span class="event-arrow" style="color:var(--text-muted);font-size:1.2rem;transition:transform 0.3s;">▼</span>' +
+            '</div>' +
+            '<div class="event-details" style="display:none;padding:0 16px 14px;border-top:1px solid rgba(255,255,255,0.05);">' +
+              '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;color:var(--text-muted);font-size:0.85rem;">' +
+                '<span>מארגן: ' + escapeHtml(meta.organizerName || '') + '</span>' +
+                '<span>|</span>' +
+                '<span>תאריך: ' + dateStr + '</span>' +
+              '</div>' +
+              '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+                '<button class="event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול ברכות</button>' +
+                '<button class="event-qr-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📥 QR</button>' +
+                '<button class="event-access-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" data-phone="' + escapeHtml(meta.organizerPhone || '') + '" data-pwd="' + escapeHtml(meta.subAdminPassword || '') + '" style="background:none;border:1px solid rgba(37,211,102,0.3);color:#25D366;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📤 שלח גישה</button>' +
+                '<button class="event-delete-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">🗑 מחק</button>' +
+              '</div>' +
+            '</div>' +
+          '</td>' +
+          '</tr>';
+      }).join('');
+    });
+  }
+
+  // Event row click handlers
+  document.getElementById('events-tbody').addEventListener('click', function(e) {
+    // Toggle dropdown
+    var headerRow = e.target.closest('.event-header-row');
+    if (headerRow && !e.target.closest('button')) {
+      var tr = headerRow.closest('tr');
+      var details = tr.querySelector('.event-details');
+      var arrow = tr.querySelector('.event-arrow');
+      if (details.style.display === 'none') {
+        details.style.display = 'block';
+        arrow.style.transform = 'rotate(180deg)';
+      } else {
+        details.style.display = 'none';
+        arrow.style.transform = 'rotate(0deg)';
+      }
+      return;
+    }
+
+    // Enter button -> drill down
+    var enterBtn = e.target.closest('.event-enter-btn');
+    if (enterBtn) {
+      e.stopPropagation();
+      showEventDetail(enterBtn.dataset.eventId);
+      return;
+    }
+
+    // Delete button -> move to recycle bin
+    var deleteBtn = e.target.closest('.event-delete-btn');
+    if (deleteBtn) {
+      e.stopPropagation();
+      var evId = deleteBtn.dataset.eventId;
+      var evName = deleteBtn.dataset.name;
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+          '<div style="width:56px; height:56px; border-radius:50%; background:rgba(229,85,85,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem; color:#e55;">🗑️</div>' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מחיקת האירוע של ' + evName + '</h2>' +
+          '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">שים לב! מחיקת האירוע תגרום ל:<br>' +
+          '• קוד ה-QR המודפס יפסיק לעבוד<br>' +
+          '• כל הברכות ימחקו<br>' +
+          '• אורחים לא יוכלו לשלוח ברכות<br><br>' +
+          '<strong style="color:#ffc107;">האירוע יועבר לסל מחזור</strong></p></div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(229,85,85,0.2)',
+        confirmButtonText: 'מחק לסל מחזור',
+        confirmButtonColor: '#e55',
+        showCancelButton: true,
+        cancelButtonText: 'ביטול',
+        width: 420,
+      }).then(function(result) {
+        if (result.isConfirmed) {
+          // Move to recycle bin instead of deleting
+          db.ref('events/' + evId).once('value', function(snap) {
+            var eventData = snap.val();
+            if (eventData) {
+              db.ref('recyclebin/' + evId).set(eventData).then(function() {
+                db.ref('recyclebin/' + evId + '/deletedAt').set(new Date().toISOString());
+                deleteEvent(evId);
+              });
+            }
+          });
+        }
+      });
+      return;
+    }
+
+    // Send access button
+    var accessBtn = e.target.closest('.event-access-btn');
+    if (accessBtn) {
+      e.stopPropagation();
+      var accEventId = accessBtn.dataset.eventId;
+      var accName = accessBtn.dataset.name;
+      var accPhone = accessBtn.dataset.phone;
+      var accPwd = accessBtn.dataset.pwd;
+
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 16px;">שליחת גישה - ' + accName + '</h2>' +
+          '<div style="background:rgba(255,255,255,0.06); border-radius:8px; padding:12px; margin-bottom:16px;">' +
+            '<p style="color:var(--text-muted); font-size:0.85rem; margin:0 0 4px;">סיסמת תת-מנהל:</p>' +
+            '<p style="color:var(--gold-light); font-size:1.8rem; font-weight:800; letter-spacing:4px; margin:0;">' + accPwd + '</p>' +
+          '</div>' +
+          '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin:0 0 12px;">שנה סיסמה:</p>' +
+          '<input type="text" id="swal-new-pwd" value="' + accPwd + '" maxlength="6" style="width:120px; padding:10px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1.3rem; background:rgba(255,255,255,0.08); color:#fff; text-align:center; letter-spacing:3px;">' +
+          '<div style="margin-top:16px;"><button id="swal-copy-link" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); padding:8px 16px; border-radius:8px; font-family:Assistant,sans-serif; font-size:0.85rem; cursor:pointer;">📋 העתק קישור + סיסמה</button></div>' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        showDenyButton: true,
+        confirmButtonText: '📱 שלח בוואטסאפ',
+        confirmButtonColor: '#25D366',
+        denyButtonText: '✅ אשר שינוי סיסמה',
+        denyButtonColor: '#b8953e',
+        showCancelButton: true,
+        cancelButtonText: 'סגור',
+        width: 400,
+        didOpen: function() {
+          document.getElementById('swal-copy-link').addEventListener('click', function() {
+            var pwd = document.getElementById('swal-new-pwd').value.trim() || accPwd;
+            var copyText = 'ניהול האירוע של ' + accName + '\nכניסה: https://hchc.co.il/admin\nסיסמה: ' + pwd;
+            navigator.clipboard.writeText(copyText).then(function() {
+              document.getElementById('swal-copy-link').textContent = '✅ הועתק!';
+              setTimeout(function() { document.getElementById('swal-copy-link').textContent = '📋 העתק קישור + סיסמה'; }, 2000);
+            });
+          });
+        }
+      }).then(function(result) {
+        var newPwd = document.getElementById('swal-new-pwd') ? document.getElementById('swal-new-pwd').value.trim() : accPwd;
+
+        if (result.isConfirmed) {
+          // Save new password if changed
+          if (newPwd !== accPwd) {
+            db.ref('events/' + accEventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + accEventId).set(newPwd);
+          }
+          // Send WhatsApp
+          var phone = accPhone.replace(/[-\s]/g, '');
+          if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+          var msg = encodeURIComponent('שלום! הגישה לניהול האירוע של ' + accName + ':\n\nכניסה: hchc.co.il/admin\nסיסמה: ' + (newPwd || accPwd) + '\n\nמזל טוב! 🎉');
+          window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
+        } else if (result.isDenied) {
+          // Save new password and go to login
+          if (newPwd && newPwd !== accPwd) {
+            db.ref('events/' + accEventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + accEventId).set(newPwd);
+            Swal.fire({
+              text: 'הסיסמה עודכנה! מעביר למסך התחברות...',
+              icon: 'success',
+              timer: 2000,
+              showConfirmButton: false,
+              background: '#0c1425',
+              color: '#fff'
+            }).then(function() {
+              sessionStorage.removeItem('admin_auth');
+              sessionStorage.removeItem('sub_admin_event');
+              window.location.href = 'admin.html';
+            });
+          }
+        }
+      });
+      return;
+    }
+
+    // QR download button
+    var qrBtn = e.target.closest('.event-qr-btn');
+    if (qrBtn) {
+      e.stopPropagation();
+      var qrEventId = qrBtn.dataset.eventId;
+      var qrName = qrBtn.dataset.name;
+      var qrImgUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=800x800&format=png&data=' + encodeURIComponent('https://hchc.co.il/e/' + qrEventId);
+      var link = document.createElement('a');
+      link.href = qrImgUrl;
+      link.download = 'QR_' + qrName + '.png';
+      link.click();
+      return;
+    }
+  });
+
+  // ===== EVENT DETAIL VIEW (Blessings) =====
+  function showEventDetail(eventId) {
+    currentEventId = eventId;
+    eventsView.style.display = 'none';
+    eventDetailView.style.display = 'block';
+
+    // Hide back button for sub-admin
+    var backBtn = document.getElementById('back-to-events');
+    if (backBtn) backBtn.style.display = isMainAdmin ? 'inline-flex' : 'none';
+
+    // Load event meta
+    getEventMeta(eventId).then(function(meta) {
+      if (!meta) return;
+      var celebrant = meta.celebrantName || '';
+      document.getElementById('detail-title').textContent = 'ניהול - ' + celebrant;
+      document.getElementById('detail-subtitle').textContent = 'מארגן: ' + (meta.organizerName || '') + ' | תאריך: ' + (meta.eventDate || '');
+
+      // Update links
+      document.getElementById('detail-blessing-link').href = '/e/' + eventId;
+      // Screen button - activate screen for this event
+      document.getElementById('detail-book-link').href = 'book.html?event=' + eventId;
+      document.getElementById('detail-qr-link').href = 'qr.html?event=' + eventId;
+    });
+
+    // Change sub-admin password button
+    document.getElementById('change-pwd-btn').onclick = function() {
+      db.ref('events/' + eventId + '/meta').once('value', function(snap) {
+        var meta = snap.val() || {};
+        var currentPwd = meta.subAdminPassword || '';
+        var evName = meta.celebrantName || '';
+        var evPhone = meta.organizerPhone || '';
+
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+            '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 16px;">סיסמת תת-מנהל - ' + evName + '</h2>' +
+            '<div style="background:rgba(255,255,255,0.06); border-radius:8px; padding:12px; margin-bottom:16px;">' +
+              '<p style="color:var(--text-muted); font-size:0.85rem; margin:0 0 4px;">סיסמה נוכחית:</p>' +
+              '<p style="color:var(--gold-light); font-size:1.8rem; font-weight:800; letter-spacing:4px; margin:0;">' + (currentPwd || 'לא הוגדרה') + '</p>' +
+            '</div>' +
+            '<p style="color:rgba(255,255,255,0.5); font-size:0.85rem; margin:0 0 12px;">שנה סיסמה:</p>' +
+            '<input type="text" id="swal-change-pwd" value="' + currentPwd + '" maxlength="6" style="width:120px; padding:10px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1.3rem; background:rgba(255,255,255,0.08); color:#fff; text-align:center; letter-spacing:3px;">' +
+            '<div style="margin-top:16px;"><button id="swal-copy-link2" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); padding:8px 16px; border-radius:8px; font-family:Assistant,sans-serif; font-size:0.85rem; cursor:pointer;">📋 העתק קישור + סיסמה</button></div>' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          showDenyButton: true,
+          confirmButtonText: '📱 שלח בוואטסאפ',
+          confirmButtonColor: '#25D366',
+          denyButtonText: '✅ אשר שינוי סיסמה',
+          denyButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'סגור',
+          width: 400,
+          didOpen: function() {
+            document.getElementById('swal-copy-link2').addEventListener('click', function() {
+              var pwd = document.getElementById('swal-change-pwd').value.trim() || currentPwd;
+              var copyText = 'ניהול האירוע של ' + evName + '\nכניסה: https://hchc.co.il/admin\nסיסמה: ' + pwd;
+              navigator.clipboard.writeText(copyText).then(function() {
+                document.getElementById('swal-copy-link2').textContent = '✅ הועתק!';
+                setTimeout(function() { document.getElementById('swal-copy-link2').textContent = '📋 העתק קישור + סיסמה'; }, 2000);
+              });
+            });
+          }
+        }).then(function(result) {
+          var newPwd = document.getElementById('swal-change-pwd') ? document.getElementById('swal-change-pwd').value.trim() : currentPwd;
+          if (result.isConfirmed) {
+            if (newPwd && newPwd !== currentPwd) {
+              db.ref('events/' + eventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + eventId).set(newPwd);
+            }
+            var phone = evPhone.replace(/[-\s]/g, '');
+            if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+            var msg = encodeURIComponent('שלום! הגישה לניהול האירוע של ' + evName + ':\n\nכניסה: hchc.co.il/admin\nסיסמה: ' + (newPwd || currentPwd) + '\n\nמזל טוב! 🎉');
+            window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
+          } else if (result.isDenied) {
+            if (newPwd && newPwd !== currentPwd) {
+              db.ref('events/' + eventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + eventId).set(newPwd);
+              Swal.fire({ text: 'הסיסמה עודכנה! מעביר למסך התחברות...', icon: 'success', timer: 2000, showConfirmButton: false, background: '#0c1425', color: '#fff' }).then(function() {
+                sessionStorage.removeItem('admin_auth');
+                sessionStorage.removeItem('sub_admin_event');
+                window.location.href = 'admin.html';
+              });
+            }
+          }
+        });
+      });
+    };
+
+    // Refresh screens button
+    document.getElementById('refresh-screens-btn').onclick = function() {
+      db.ref('events/' + eventId + '/screenControl/refresh').set(true);
+      showConfirm('המסכים רועננו', 'כל המסכים המחוברים יטענו מחדש', null);
+    };
+
+    document.getElementById('slider-settings-btn').onclick = function() {
+      db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').once('value', function(snap) {
+        var currentSeconds = Number(snap.val()) || 13;
+        if (!Number.isFinite(currentSeconds) || currentSeconds < 1 || currentSeconds > 60) currentSeconds = 13;
+
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;">' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 12px;">הגדרת סליידר</h2>' +
+            '<p style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;">כמה שניות להציג כל שקופית?</p>' +
+            '<input type="number" id="swal-slider-seconds" min="1" max="60" value="' + currentSeconds + '" style="width:120px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.4rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
+            '<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin:10px 0 0;">טווח מומלץ: 1-60 שניות</p>' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'שמור',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 380,
+          preConfirm: function() {
+            var seconds = Number(document.getElementById('swal-slider-seconds').value);
+            if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
+              Swal.showValidationMessage('נא לבחור מספר בין 1 ל-60 שניות');
+              return false;
+            }
+            return Math.round(seconds);
+          }
+        }).then(function(result) {
+          if (!result.isConfirmed) return;
+          db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').set(result.value).then(function() {
+            Swal.fire({
+              text: 'הגדרת הסליידר נשמרה',
+              icon: 'success',
+              timer: 1400,
+              showConfirmButton: false,
+              background: '#0c1425',
+              color: '#fff'
+            });
+          }).catch(function() {
+            Swal.fire({
+              text: 'שמירת ההגדרה נכשלה',
+              icon: 'error',
+              confirmButtonText: 'הבנתי',
+              confirmButtonColor: '#b8953e',
+              background: '#0c1425',
+              color: '#fff'
+            });
+          });
+        });
+      });
+    };
+
+    document.getElementById('screen-images-btn').onclick = function() {
+      openScreenImagesManager(eventId);
+    };
+
+    // Logout from event + disconnect screen
+    document.getElementById('logout-event-btn').onclick = function() {
+      db.ref('events/' + eventId + '/screenControl/disconnect').set(true);
+      sessionStorage.removeItem('admin_auth');
+      sessionStorage.removeItem('sub_admin_event');
+      sessionStorage.removeItem('admin_access_password');
+      window.location.href = '/';
+    };
+
+    // Show screen URL/QR button
+    document.getElementById('detail-screen-btn').onclick = function() {
+      var screenUrl = 'https://hchc.co.il/screen.html?event=' + eventId;
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:center;">' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">הפעלת מסך</h2>' +
+          '<p style="color:rgba(255,255,255,0.5); font-size:0.9rem; margin-bottom:16px;">פתחו את הכתובת הזו בדפדפן של המסך/טלוויזיה:</p>' +
+          '<div style="background:rgba(255,255,255,0.06); border-radius:8px; padding:12px; margin-bottom:16px; word-break:break-all;">' +
+            '<p style="color:var(--gold-light); font-size:0.85rem; margin:0; direction:ltr;">' + screenUrl + '</p>' +
+          '</div>' +
+          '<button id="swal-open-screen-tab" style="background:rgba(212,176,101,0.15); border:1px solid rgba(212,176,101,0.4); color:var(--gold-light); padding:14px 24px; border-radius:10px; font-family:Assistant,sans-serif; font-size:1rem; font-weight:700; cursor:pointer; width:100%;">🖥 פתח את המסך בטאב חדש</button>' +
+          '<button id="swal-copy-screen-url" style="margin-top:12px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); padding:8px 16px; border-radius:8px; font-family:Assistant,sans-serif; font-size:0.85rem; cursor:pointer;">📋 העתק כתובת</button>' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        showConfirmButton: false,
+        showCloseButton: true,
+        width: 420,
+        didOpen: function() {
+          document.getElementById('swal-open-screen-tab').addEventListener('click', function() {
+            window.open(screenUrl, '_blank');
+          });
+          document.getElementById('swal-copy-screen-url').addEventListener('click', function() {
+            navigator.clipboard.writeText(screenUrl).then(function() {
+              document.getElementById('swal-copy-screen-url').textContent = '✅ הועתק!';
+            });
+          });
+        }
+      });
+    };
+
+    // Auto-mode switch
+    var autoSwitch = document.getElementById('auto-mode-switch');
+    var switchTrack = document.getElementById('switch-track');
+    var switchThumb = document.getElementById('switch-thumb');
+    var modeLabel = document.getElementById('mode-label');
+    var modeDesc = document.getElementById('mode-desc');
+
+    // Load current mode
+    db.ref('events/' + eventId + '/meta/autoMode').on('value', function(snap) {
+      var isAuto = snap.val() === true;
+      autoSwitch.checked = isAuto;
+      updateSwitchUI(isAuto);
+    });
+
+    function updateSwitchUI(isAuto) {
+      if (isAuto) {
+        switchTrack.style.background = '#2ecc71';
+        switchThumb.style.left = '27px';
+        modeLabel.textContent = 'מצב העלאה חופשית (AI)';
+        modeDesc.textContent = 'ברכות עולות אוטומטית אחרי אישור AI';
+      } else {
+        switchTrack.style.background = '#e74c3c';
+        switchThumb.style.left = '3px';
+        modeLabel.textContent = 'מצב ביקורת אנושית';
+        modeDesc.textContent = 'ברכות מחכות לאישור ידני + מייל';
+      }
+    }
+
+    autoSwitch.addEventListener('change', function() {
+      var isAuto = autoSwitch.checked;
+      if (isAuto) {
+        // Show warning SweetAlert
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(255,193,7,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">⚠️</div>' +
+              '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב העלאה חופשית</h2>' +
+              '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">שים לב! במצב זה הברכות יעלו למסך<br>באישור AI בלבד ללא בדיקה ידנית.<br><br><strong style="color:#ffc107;">מומלץ להשתמש במצב ביקורת אנושית</strong><br>כדי למנוע ברכות לא מתאימות</p></div>',
+            background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+            border: '1px solid rgba(255,193,7,0.2)',
+            confirmButtonText: 'הבנתי, הפעל מצב אוטומטי',
+            confirmButtonColor: '#b8953e',
+            showCancelButton: true,
+            cancelButtonText: 'ביטול',
+            width: 400,
+          }).then(function(result) {
+            if (result.isConfirmed) {
+              db.ref('events/' + eventId + '/meta/autoMode').set(true);
+            } else {
+              autoSwitch.checked = false;
+              updateSwitchUI(false);
+            }
+          });
+        } else {
+          db.ref('events/' + eventId + '/meta/autoMode').set(true);
+        }
+      } else {
+        // Show explanation SweetAlert
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(231,76,60,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">🧑‍⚖️</div>' +
+              '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב ביקורת אנושית</h2>' +
+              '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">מעכשיו כל ברכה חדשה תמתין<br>לאישור ידני שלך לפני שהיא עולה למסך.<br><br><strong style="color:#e74c3c;">תקבל מייל על כל ברכה חדשה</strong><br>עם קישור לאישור או דחייה</p></div>',
+            background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+            border: '1px solid rgba(231,76,60,0.2)',
+            confirmButtonText: 'הבנתי, הפעל ביקורת אנושית',
+            confirmButtonColor: '#b8953e',
+            showCancelButton: true,
+            cancelButtonText: 'ביטול',
+            width: 400,
+          }).then(function(result) {
+            if (result.isConfirmed) {
+              db.ref('events/' + eventId + '/meta/autoMode').set(false);
+            } else {
+              autoSwitch.checked = true;
+              updateSwitchUI(true);
+            }
+          });
+        } else {
+          db.ref('events/' + eventId + '/meta/autoMode').set(false);
+        }
+      }
+    });
+
+    // Listen for blessings
+    var blessingsLoader = document.getElementById('blessings-loader');
+    if (blessingsLoader) blessingsLoader.style.display = 'flex';
+
+    blessingsUnsubscribe = onBlessingsChanged(eventId, function(blessings) {
+      updateStats(blessings);
+      renderList(blessings);
+    });
+
+    // Load screen images preview (separate from blessings)
+    loadDashboardScreenImages(eventId);
+  }
+
+  // Screen images preview on the main dashboard - so they're not confused with blessings
+  async function loadDashboardScreenImages(eventId) {
+    var grid = document.getElementById('dashboard-screen-images-grid');
+    var empty = document.getElementById('dashboard-screen-images-empty');
+    var countEl = document.getElementById('dashboard-screen-images-count');
+    if (!grid) return;
+
+    var password = await getAdminCredential();
+    if (!password) return;
+
+    try {
+      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password });
+      var images = result.images || [];
+      if (countEl) countEl.textContent = images.length;
+
+      if (images.length === 0) {
+        grid.style.display = 'none';
+        grid.innerHTML = '';
+        if (empty) { empty.style.display = 'block'; empty.textContent = 'אין תמונות למסך'; }
+        return;
+      }
+
+      if (empty) empty.style.display = 'none';
+      grid.style.display = 'grid';
+      grid.innerHTML = images.map(function(img) {
+        return '<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;">' +
+          '<img src="' + img.dataUrl + '" alt="" style="width:100%;height:90px;object-fit:cover;display:block;background:#07101f;">' +
+          '<button class="dashboard-screen-image-delete" data-id="' + img.id + '" style="width:100%;border:0;border-top:1px solid rgba(255,255,255,0.08);background:rgba(229,85,85,0.12);color:#ff8b8b;padding:6px;font-family:Assistant,sans-serif;font-size:0.75rem;font-weight:700;cursor:pointer;">מחק</button>' +
+        '</div>';
+      }).join('');
+    } catch (err) {
+      grid.style.display = 'none';
+      grid.innerHTML = '';
+      if (empty) { empty.style.display = 'block'; empty.textContent = 'שגיאה בטעינת התמונות'; }
+    }
+  }
+
+  // Delete from the dashboard preview grid (delegated - grid is static in the DOM)
+  var dashboardScreenImagesGrid = document.getElementById('dashboard-screen-images-grid');
+  if (dashboardScreenImagesGrid) {
+    dashboardScreenImagesGrid.addEventListener('click', async function(e) {
+      var btn = e.target.closest('.dashboard-screen-image-delete');
+      if (!btn) return;
+      var imageId = btn.getAttribute('data-id');
+      var password = await getAdminCredential();
+      if (!password) return;
+      btn.disabled = true;
+      btn.textContent = 'מוחק...';
+      try {
+        await callScreenImagesApi({ action: 'delete', eventId: currentEventId, password: password, imageId: imageId });
+        loadDashboardScreenImages(currentEventId);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'מחק';
+        showScreenImageError('מחיקת התמונה נכשלה');
+      }
+    });
+  }
+
+  // Back to events
+  document.getElementById('back-to-events').addEventListener('click', function() {
+    showEventsView();
+  });
+
+  // Stats
+  async function updateStats(blessings) {
+    document.getElementById('stat-total').textContent = blessings.length;
+
+    var today = new Date().toDateString();
+    var todayCount = blessings.filter(function(b) { return new Date(b.createdAt).toDateString() === today; }).length;
+    document.getElementById('stat-today').textContent = todayCount;
+
+    var usage = await getStorageUsage(currentEventId);
+    document.getElementById('stat-storage').textContent = usage.usedKB;
+
+    if (blessings.length > 0) {
+      document.getElementById('stat-popular').textContent = blessings.length + ' ברכות';
+      document.getElementById('stat-popular').style.fontSize = '0.9rem';
+    } else {
+      document.getElementById('stat-popular').textContent = '-';
+    }
+
+    document.getElementById('list-count').textContent = blessings.length;
+  }
+
+  // Render blessings list
   function renderList(blessings) {
-    const loader = document.getElementById('blessings-loader');
+    var loader = document.getElementById('blessings-loader');
     if (loader) loader.style.display = 'none';
+
+    var blessingsList = document.getElementById('blessings-list');
+    var emptyAdmin = document.getElementById('empty-admin');
 
     if (blessings.length === 0) {
       blessingsList.style.display = 'none';
@@ -93,104 +818,189 @@
     emptyAdmin.style.display = 'none';
     blessingsList.style.display = 'flex';
 
-    const sorted = [...blessings].reverse();
+    var sorted = blessings.slice().reverse();
 
-    blessingsList.innerHTML = sorted.map(b => {
-      const date = b.createdAt ? new Date(b.createdAt).toLocaleDateString('he-IL', {
+    blessingsList.innerHTML = sorted.map(function(b) {
+      var text = b.text || '';
+      var name = b.name || '(ללא שם)';
+      var date = b.createdAt ? new Date(b.createdAt).toLocaleDateString('he-IL', {
         day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
       }) : '';
-      const text = escapeHtml(b.text).substring(0, 60) + (b.text.length > 60 ? '...' : '');
+      var shortText = escapeHtml(text).substring(0, 40) + (text.length > 40 ? '...' : '');
+      var hasLongText = text.length > 40;
 
-      const status = b.status || 'pending';
-      const isRejected = status === 'rejected';
-      const isPending = status === 'pending';
-      const isApproved = status === 'approved';
-      const statusClass = isApproved ? 'status-approved' : isRejected ? 'status-rejected' : 'status-pending';
-      const statusText = isApproved ? 'אושר לעלות' : isRejected ? 'אין אישור להעלאה' : 'ממתין לאישור';
+      var status = b.status;
+      var isChecking = !status;
+      var isRejected = status === 'rejected';
+      var isPending = status === 'pending';
+      var isApproved = status === 'approved';
+      var statusClass = isChecking ? 'status-checking' : isApproved ? 'status-approved' : isRejected ? 'status-rejected' : 'status-pending';
+      var statusText = isChecking ? '🔍 בודק...' : isApproved ? 'אושר לעלות' : isRejected ? 'אין אישור להעלאה' : 'ממתין לאישור';
 
-      // Rejected warning block
-      const rejectedBlock = isRejected ? `
-        <div class="blessing-item-warning">
-          <span class="warning-text">⚠️ הודעה זו חשודה - יש לבדוק עם השולח</span>
-          ${b.rejectReason ? `<span class="warning-reason">סיבה: ${escapeHtml(b.rejectReason)}</span>` : ''}
-          ${b.phone ? `<a href="https://wa.me/${(b.phone || '').replace(/[-\s]/g,'').replace(/^0/,'972')}?text=${encodeURIComponent('שלום, ראינו ששלחת ברכה לבר המצווה של הראל. ההודעה שלך נבדקת ולא נוכל להעלות אותה עד לבירור. אנא צור קשר.')}" target="_blank" class="warning-whatsapp">שלחו הודעה לשולח</a>` : ''}
-        </div>
-      ` : '';
-
-      // Action buttons
-      let actionBtns = '';
-      if (isPending) {
-        actionBtns = `<button class="blessing-item-approve" data-id="${b.id}">אשר העלאה</button>`;
-      }
-      if (isRejected) {
-        actionBtns = `<button class="blessing-item-approve" data-id="${b.id}">אשר בכל זאת</button>`;
+      var actionBtns = '';
+      if (isChecking) {
+        actionBtns = '<span style="color:var(--gold); font-size:0.7rem; opacity:0.7;">AI בודק...</span>';
+      } else if (isPending) {
+        actionBtns = '<button class="blessing-item-approve" data-id="' + b.id + '">אשר העלאה</button>';
+      } else if (isRejected) {
+        actionBtns = '<button class="blessing-item-approve" data-id="' + b.id + '">אשר בכל זאת</button>';
       }
 
-      return `
-        <div class="blessing-item ${statusClass}" data-id="${b.id}">
-          ${b.photoDataUrl && b.photoDataUrl.length > 10
-            ? `<img class="blessing-item-photo" src="${b.photoDataUrl}" alt="${escapeHtml(b.name)}">`
-            : `<div class="blessing-item-photo blessing-item-no-photo">אין תמונה</div>`}
-          <div class="blessing-item-info">
-            <div class="blessing-item-name">${escapeHtml(b.name)}</div>
-            ${b.phone ? `<div class="blessing-item-phone">${escapeHtml(b.phone)}</div>` : ''}
-            <div class="blessing-item-text">${text}</div>
-            <div class="blessing-item-meta">${date}</div>
-            ${rejectedBlock}
-          </div>
-          <span class="blessing-item-status ${statusClass}">${statusText}</span>
-          ${actionBtns}
-          <button class="blessing-item-delete" data-id="${b.id}" title="מחק">✕</button>
-        </div>
-      `;
+      // Dropdown content: full text + rejected info
+      var dropdownContent = '';
+      if (hasLongText || isRejected) {
+        dropdownContent = '<div class="blessing-item-dropdown" data-dropdown="' + b.id + '">';
+        if (hasLongText) {
+          dropdownContent += '<div class="blessing-full-text">' + escapeHtml(text) + '</div>';
+        }
+        if (isRejected) {
+          dropdownContent += '<div style="margin-top:8px;background:rgba(229,85,85,0.1);border:1px solid rgba(229,85,85,0.2);border-radius:6px;padding:8px;font-size:0.75rem;">' +
+            '<span style="color:#e55;">הודעה חשודה - יש לבדוק</span>' +
+            (b.rejectReason ? '<br><span style="color:rgba(255,255,255,0.5);">סיבה: ' + escapeHtml(b.rejectReason) + '</span>' : '') +
+          '</div>';
+        }
+        dropdownContent += '</div>';
+      }
+
+      var toggleBtn = (hasLongText || isRejected) ? '<button class="blessing-item-toggle" data-toggle="' + b.id + '">▼ פרטים</button>' : '';
+
+      return '<div class="blessing-item ' + statusClass + '" data-id="' + b.id + '"' + (isChecking ? ' style="opacity:0.6; pointer-events:none;"' : '') + '>' +
+        '<div class="blessing-item-row">' +
+          (b.photoDataUrl && b.photoDataUrl.length > 10
+            ? '<img class="blessing-item-photo" src="' + b.photoDataUrl + '" alt="' + escapeHtml(name) + '">'
+            : '<div class="blessing-item-photo blessing-item-no-photo">אין תמונה</div>') +
+          '<div class="blessing-item-info">' +
+            '<span class="blessing-item-name">' + escapeHtml(name) + '</span>' +
+            '<span class="blessing-item-text">' + shortText + '</span>' +
+            '<span class="blessing-item-meta">' + date + '</span>' +
+          '</div>' +
+          '<span class="blessing-item-status ' + statusClass + '">' + statusText + '</span>' +
+          actionBtns +
+          toggleBtn +
+          (isChecking ? '' : '<button class="blessing-item-edit" data-id="' + b.id + '" title="ערוך" style="background:none;border:1px solid rgba(184,149,62,0.35);color:var(--gold-light);padding:4px 9px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:Assistant,sans-serif;">ערוך</button>') +
+          (isChecking ? '' : '<button class="blessing-item-delete" data-id="' + b.id + '" title="מחק">✕</button>') +
+        '</div>' +
+        dropdownContent +
+      '</div>';
     }).join('');
   }
 
-  // Approve blessing
-  blessingsList.addEventListener('click', function(e) {
-    const approveBtn = e.target.closest('.blessing-item-approve');
-    if (approveBtn) {
-      const id = approveBtn.dataset.id;
-      db.ref('blessings/' + id + '/status').set('approved');
+  // Approve / Delete / Toggle warning
+  document.getElementById('blessings-list').addEventListener('click', function(e) {
+    // Dropdown toggle
+    var toggleBtn = e.target.closest('.blessing-item-toggle');
+    if (toggleBtn) {
+      var id = toggleBtn.dataset.toggle;
+      var dropdown = toggleBtn.closest('.blessing-item').querySelector('[data-dropdown="' + id + '"]');
+      if (dropdown) {
+        dropdown.classList.toggle('open');
+        toggleBtn.textContent = dropdown.classList.contains('open') ? '▲ סגור' : '▼ פרטים';
+      }
       return;
     }
 
-    // Delete single blessing
-    const deleteBtn = e.target.closest('.blessing-item-delete');
-    if (!deleteBtn) return;
+    var editBtn = e.target.closest('.blessing-item-edit');
+    if (editBtn && currentEventId) {
+      var editId = editBtn.dataset.id;
+      db.ref('events/' + currentEventId + '/blessings/' + editId).once('value', function(snap) {
+        var blessing = snap.val();
+        if (!blessing) return;
 
-    const id = deleteBtn.dataset.id;
-    const item = deleteBtn.closest('.blessing-item');
-    const name = item.querySelector('.blessing-item-name').textContent;
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:right;">' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 16px;text-align:center;">עריכת ברכה</h2>' +
+            '<label style="display:block;color:rgba(255,255,255,0.65);font-size:0.85rem;margin-bottom:6px;">שם</label>' +
+            '<input id="swal-edit-name" type="text" value="' + escapeHtml(blessing.name || '') + '" style="width:100%;padding:12px 14px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;margin-bottom:12px;">' +
+            '<label style="display:block;color:rgba(255,255,255,0.65);font-size:0.85rem;margin-bottom:6px;">טקסט הברכה</label>' +
+            '<textarea id="swal-edit-text" rows="5" style="width:100%;padding:12px 14px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;resize:vertical;">' + escapeHtml(blessing.text || '') + '</textarea>' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'שמור',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 460,
+          preConfirm: function() {
+            var name = document.getElementById('swal-edit-name').value.trim();
+            var text = document.getElementById('swal-edit-text').value.trim();
+            if (!name || !text) {
+              Swal.showValidationMessage('נא למלא שם וטקסט ברכה');
+              return false;
+            }
+            return { name: name, text: text };
+          }
+        }).then(function(result) {
+          if (!result.isConfirmed) return;
+          db.ref('events/' + currentEventId + '/blessings/' + editId).update({
+            name: result.value.name,
+            text: result.value.text,
+            updatedAt: new Date().toISOString()
+          }).then(function() {
+            Swal.fire({
+              text: 'הברכה עודכנה',
+              icon: 'success',
+              timer: 1400,
+              showConfirmButton: false,
+              background: '#0c1425',
+              color: '#fff'
+            });
+          }).catch(function() {
+            Swal.fire({
+              text: 'שמירת הברכה נכשלה',
+              icon: 'error',
+              confirmButtonText: 'הבנתי',
+              confirmButtonColor: '#b8953e',
+              background: '#0c1425',
+              color: '#fff'
+            });
+          });
+        });
+      });
+      return;
+    }
 
-    showConfirm(`למחוק את הברכה של ${name}?`, 'פעולה זו לא ניתנת לביטול', function() {
-      deleteBlessing(id);
+    var approveBtn = e.target.closest('.blessing-item-approve');
+    if (approveBtn && currentEventId) {
+      var id = approveBtn.dataset.id;
+      db.ref('events/' + currentEventId + '/blessings/' + id + '/status').set('approved');
+      return;
+    }
+
+    var deleteBtn = e.target.closest('.blessing-item-delete');
+    if (!deleteBtn || !currentEventId) return;
+
+    var id = deleteBtn.dataset.id;
+    var item = deleteBtn.closest('.blessing-item');
+    var name = item.querySelector('.blessing-item-name').textContent;
+
+    showConfirm('למחוק את הברכה של ' + name + '?', 'פעולה זו לא ניתנת לביטול', function() {
+      deleteBlessing(currentEventId, id);
     });
   });
 
-  // Clear all
-  clearBtn.addEventListener('click', async function() {
-    const blessings = await getAllBlessings();
+  // Clear all blessings for current event
+  document.getElementById('clear-btn').addEventListener('click', async function() {
+    if (!currentEventId) return;
+    var blessings = await getAllBlessings(currentEventId);
     if (blessings.length === 0) return;
 
-    showConfirm(`למחוק את כל ${blessings.length} הברכות?`, 'פעולה זו לא ניתנת לביטול', function() {
-      clearAllBlessings();
+    showConfirm('למחוק את כל ' + blessings.length + ' הברכות?', 'פעולה זו לא ניתנת לביטול', function() {
+      clearAllBlessings(currentEventId);
     });
   });
 
+  // Confirm dialog
   function showConfirm(title, message, onConfirm) {
-    const overlay = document.createElement('div');
+    var overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
-    overlay.innerHTML = `
-      <div class="confirm-card">
-        <h3>${title}</h3>
-        <p>${message}</p>
-        <div class="confirm-actions">
-          ${onConfirm ? '<button class="btn btn-danger btn-sm" id="confirm-yes">אישור</button>' : ''}
-          <button class="btn btn-secondary btn-sm" id="confirm-no">${onConfirm ? 'ביטול' : 'סגור'}</button>
-        </div>
-      </div>
-    `;
+    overlay.innerHTML = '<div class="confirm-card">' +
+      '<h3>' + title + '</h3>' +
+      '<p>' + message + '</p>' +
+      '<div class="confirm-actions">' +
+        (onConfirm ? '<button class="btn btn-danger btn-sm" id="confirm-yes">אישור</button>' : '') +
+        '<button class="btn btn-secondary btn-sm" id="confirm-no">' + (onConfirm ? 'ביטול' : 'סגור') + '</button>' +
+      '</div></div>';
     document.body.appendChild(overlay);
 
     overlay.querySelector('#confirm-no').addEventListener('click', function() {
@@ -206,6 +1016,243 @@
 
     overlay.addEventListener('click', function(e) {
       if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  function showImageTooLargeAlert() {
+    return Swal.fire({
+      icon: 'warning',
+      title: 'התמונה גדולה מדי',
+      text: 'ניתן להעלות תמונה בגודל של עד 3MB בלבד',
+      confirmButtonText: 'הבנתי',
+      confirmButtonColor: '#b8953e',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      color: '#fff'
+    });
+  }
+
+  function showScreenImageError(message) {
+    return Swal.fire({
+      icon: 'error',
+      title: 'שגיאה',
+      text: message || 'לא ניתן להשלים את הפעולה כרגע',
+      confirmButtonText: 'הבנתי',
+      confirmButtonColor: '#b8953e',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      color: '#fff'
+    });
+  }
+
+  function getAdminCredential() {
+    if (isMainAdmin) return Promise.resolve(ADMIN_PASSWORD);
+    var saved = sessionStorage.getItem('admin_access_password');
+    if (saved) return Promise.resolve(saved);
+
+    return Swal.fire({
+      html: '<div dir="rtl" style="text-align:center;">' +
+        '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 14px;">אימות מנהל אירוע</h2>' +
+        '<input type="password" id="screen-images-password" placeholder="סיסמה" style="width:100%;padding:14px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.2rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
+        '</div>',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      confirmButtonText: 'כניסה',
+      confirmButtonColor: '#b8953e',
+      showCancelButton: true,
+      cancelButtonText: 'ביטול',
+      width: 380,
+      preConfirm: function() {
+        var pwd = document.getElementById('screen-images-password').value.trim();
+        if (!pwd) return false;
+        return pwd;
+      },
+      didOpen: function() {
+        document.getElementById('screen-images-password').focus();
+      }
+    }).then(function(result) {
+      if (!result.isConfirmed) return null;
+      sessionStorage.setItem('admin_access_password', result.value);
+      return result.value;
+    });
+  }
+
+  function callScreenImagesApi(payload) {
+    return fetch(SCREEN_IMAGES_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; }).then(function(data) {
+        if (!res.ok || data.ok === false) {
+          var err = new Error(data.error || 'request_failed');
+          err.code = data.code || data.error || 'request_failed';
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) { resolve(e.target.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderScreenImages(images) {
+    if (!images.length) {
+      return '<div style="padding:28px 12px;color:rgba(255,255,255,0.45);font-size:0.95rem;">עדיין לא הועלו תמונות למסך</div>';
+    }
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px;max-height:310px;overflow:auto;padding:2px;">' +
+      images.map(function(img) {
+        return '<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;">' +
+          '<img src="' + img.dataUrl + '" alt="" style="width:100%;height:82px;object-fit:cover;display:block;background:#07101f;">' +
+          '<button class="screen-image-delete" data-id="' + img.id + '" style="width:100%;border:0;border-top:1px solid rgba(255,255,255,0.08);background:rgba(229,85,85,0.12);color:#ff8b8b;padding:7px;font-family:Assistant,sans-serif;font-weight:700;cursor:pointer;">מחק</button>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  async function openScreenImagesManager(eventId) {
+    var password = await getAdminCredential();
+    if (!password) return;
+
+    Swal.fire({
+      html: '<div dir="rtl" style="text-align:center;padding:18px 0;">' +
+        '<div style="width:42px;height:42px;border:3px solid rgba(255,255,255,0.12);border-top-color:#d4b065;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;"></div>' +
+        '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-size:1.25rem;margin:0 0 6px;">טוען תמונות...</h2>' +
+        '<p style="color:rgba(255,255,255,0.5);font-size:0.9rem;margin:0;">רק רגע</p>' +
+        '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>' +
+        '</div>',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      width: 360
+    });
+
+    var images = [];
+    try {
+      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password });
+      images = result.images || [];
+    } catch (err) {
+      sessionStorage.removeItem('admin_access_password');
+      await showScreenImageError('אין הרשאה או שלא ניתן לטעון את התמונות');
+      return;
+    }
+
+    Swal.fire({
+      html: '<div dir="rtl" style="text-align:right;">' +
+        '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 6px;text-align:center;">תמונות למסך</h2>' +
+        '<p id="screen-images-count" style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;text-align:center;">' + images.length + ' תמונות</p>' +
+        '<label for="screen-images-file" style="display:block;text-align:center;background:var(--gold);color:#0c1425;border-radius:8px;padding:12px 18px;font-family:Assistant,sans-serif;font-weight:800;cursor:pointer;margin-bottom:14px;">העלה תמונות</label>' +
+        '<input type="file" id="screen-images-file" accept="image/*" multiple style="display:none;">' +
+        '<div id="screen-images-upload-loader" style="display:none;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px;margin:0 0 12px;">' +
+          '<div style="width:26px;height:26px;border:3px solid rgba(255,255,255,0.12);border-top-color:#d4b065;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>' +
+          '<span style="color:rgba(255,255,255,0.72);font-size:0.85rem;">מעלה תמונות...</span>' +
+        '</div>' +
+        '<p id="screen-images-status" style="min-height:20px;color:#8ee09f;font-size:0.85rem;text-align:center;margin:0 0 10px;"></p>' +
+        '<div id="screen-images-grid">' + renderScreenImages(images) + '</div>' +
+        '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>' +
+        '</div>',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 520,
+      didOpen: function() {
+        var fileInput = document.getElementById('screen-images-file');
+        var grid = document.getElementById('screen-images-grid');
+        var count = document.getElementById('screen-images-count');
+        var status = document.getElementById('screen-images-status');
+        var uploadLoader = document.getElementById('screen-images-upload-loader');
+
+        function refresh(nextImages, message) {
+          images = nextImages || images;
+          count.textContent = images.length + ' תמונות';
+          grid.innerHTML = renderScreenImages(images);
+          status.textContent = message || '';
+        }
+
+        fileInput.addEventListener('change', async function() {
+          var files = Array.prototype.slice.call(fileInput.files || []);
+          if (!files.length) return;
+
+          var oversized = files.some(function(file) {
+            return file.size > SCREEN_IMAGE_MAX_BYTES;
+          });
+          if (oversized) {
+            fileInput.value = '';
+            await showImageTooLargeAlert();
+            return;
+          }
+
+          var unsupported = files.some(function(file) {
+            return !file.type || !file.type.startsWith('image/');
+          });
+          if (unsupported) {
+            fileInput.value = '';
+            await showScreenImageError('ניתן להעלות קובץ תמונה בלבד');
+            return;
+          }
+
+          try {
+            fileInput.disabled = true;
+            uploadLoader.style.display = 'block';
+            var latestImages = images;
+            for (var i = 0; i < files.length; i++) {
+              count.textContent = 'מעלה תמונה ' + (i + 1) + ' מתוך ' + files.length + '...';
+              status.textContent = '';
+              var file = files[i];
+              var dataUrl = await fileToDataUrl(file);
+              var result = await callScreenImagesApi({
+                action: 'upload',
+                eventId: eventId,
+                password: password,
+                dataUrl: dataUrl,
+                fileName: file.name
+              });
+              latestImages = result.images || latestImages;
+            }
+            refresh(latestImages, files.length === 1 ? 'התמונה הועלתה בהצלחה' : files.length + ' תמונות הועלו בהצלחה');
+            fileInput.value = '';
+          } catch (err) {
+            fileInput.value = '';
+            count.textContent = images.length + ' תמונות';
+            if (err.code === 'image_too_large') {
+              await showImageTooLargeAlert();
+            } else {
+              await showScreenImageError('העלאת התמונה נכשלה');
+            }
+          } finally {
+            fileInput.disabled = false;
+            uploadLoader.style.display = 'none';
+          }
+        });
+
+        grid.addEventListener('click', async function(e) {
+          var btn = e.target.closest('.screen-image-delete');
+          if (!btn) return;
+          var imageId = btn.dataset.id;
+          btn.disabled = true;
+          btn.textContent = 'מוחק...';
+          try {
+            var result = await callScreenImagesApi({
+              action: 'delete',
+              eventId: eventId,
+              password: password,
+              imageId: imageId
+            });
+            refresh(result.images || [], 'התמונה נמחקה בהצלחה');
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'מחק';
+            await showScreenImageError('מחיקת התמונה נכשלה');
+          }
+        });
+      }
     });
   }
 })();

@@ -1,10 +1,8 @@
 // ===== GUEST PAGE LOGIC =====
 (function() {
-  // Redirect to welcome if no phone
-  if (!sessionStorage.getItem('guest_phone')) {
-    window.location.href = 'welcome.html';
-    return;
-  }
+  // Get eventId from URL
+  var eventId = getEventIdFromPath();
+  if (!eventId) return;
 
   let selectedTemplateId = 1;
   let compressedPhoto = null;
@@ -54,8 +52,16 @@
   });
 
   photoInput.addEventListener('change', function() {
+    console.log('photo change event, files:', photoInput.files.length);
     if (photoInput.files.length) {
       handlePhotoFile(photoInput.files[0]);
+    }
+  });
+
+  // Also listen on photo-area for input changes (in case input is recreated)
+  photoArea.addEventListener('change', function(e) {
+    if (e.target && e.target.type === 'file' && e.target.files.length) {
+      handlePhotoFile(e.target.files[0]);
     }
   });
 
@@ -68,31 +74,54 @@
     // Read file and open cropper
     const reader = new FileReader();
     reader.onload = function(e) {
-      cropImage.src = e.target.result;
-      cropModal.classList.add('active');
+      try {
+        cropImage.src = e.target.result;
+        cropModal.classList.add('active');
 
-      // Destroy previous cropper if exists
-      if (cropper) {
-        cropper.destroy();
-        cropper = null;
-      }
+        // Destroy previous cropper if exists
+        if (cropper) {
+          cropper.destroy();
+          cropper = null;
+        }
 
-      // Wait for image to load then init cropper
-      cropImage.onload = function() {
-        cropper = new Cropper(cropImage, {
-          aspectRatio: 1,
-          viewMode: 1,
-          dragMode: 'move',
-          autoCropArea: 1,
-          cropBoxResizable: true,
-          cropBoxMovable: true,
-          background: false,
-          guides: false,
-          center: true,
-          highlight: false,
-          responsive: true,
+        // Wait for image to load then init cropper
+        cropImage.onload = function() {
+          try {
+            cropper = new Cropper(cropImage, {
+              aspectRatio: 1,
+              viewMode: 1,
+              dragMode: 'move',
+              autoCropArea: 1,
+              cropBoxResizable: true,
+              cropBoxMovable: true,
+              background: false,
+              guides: false,
+              center: true,
+              highlight: false,
+              responsive: true,
+            });
+          } catch(err) {
+            console.error('Cropper error:', err);
+            // Fallback - use image without cropping
+            cropModal.classList.remove('active');
+            compressImage(file).then(function(dataUrl) {
+              compressedPhoto = dataUrl;
+              photoArea.classList.add('has-photo');
+              photoArea.innerHTML = '<img src="' + dataUrl + '" class="photo-preview" alt="תצוגה מקדימה"><button type="button" class="remove-photo" onclick="removePhoto(event)">×</button>';
+              clearError('photo-group');
+            });
+          }
+        };
+      } catch(err) {
+        console.error('Photo read error:', err);
+        // Fallback - use image without cropping
+        compressImage(file).then(function(dataUrl) {
+          compressedPhoto = dataUrl;
+          photoArea.classList.add('has-photo');
+          photoArea.innerHTML = '<img src="' + dataUrl + '" class="photo-preview" alt="תצוגה מקדימה"><button type="button" class="remove-photo" onclick="removePhoto(event)">×</button>';
+          clearError('photo-group');
         });
-      };
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -102,13 +131,13 @@
     if (!cropper) return;
 
     const canvas = cropper.getCroppedCanvas({
-      width: 1920,
-      height: 1920,
+      width: 1200,
+      height: 1200,
       imageSmoothingEnabled: true,
       imageSmoothingQuality: 'high',
     });
 
-    compressedPhoto = canvas.toDataURL('image/jpeg', 0.92);
+    compressedPhoto = canvas.toDataURL('image/jpeg', 0.75);
 
     // Close crop modal
     cropModal.classList.remove('active');
@@ -168,7 +197,6 @@
 
     currentBlessing = {
       name: nameInput.value.trim(),
-      phone: sessionStorage.getItem('guest_phone') || '',
       text: textInput.value.trim(),
       photoDataUrl: compressedPhoto,
       templateId: selectedTemplateId
@@ -178,19 +206,62 @@
     previewModal.classList.add('active');
   });
 
-  // Confirm send
-  confirmBtn.addEventListener('click', function() {
+  // Confirm send - check AI first
+  confirmBtn.addEventListener('click', async function() {
     if (!currentBlessing) return;
 
-    saveBlessing(currentBlessing);
-    previewModal.classList.remove('active');
-    formContainer.style.display = 'none';
-    successState.classList.add('active');
-    resetForm();
+    // Disable button and show checking state
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '🔍 בודק תוכן...';
 
-    document.dispatchEvent(new Event('blessing-sent'));
-    if (window.confettiBurst) {
-      setTimeout(() => window.confettiBurst(window.innerWidth / 2, window.innerHeight / 3, 120), 300);
+    try {
+      var aiResult = await checkBlessingClientSide(currentBlessing.name, currentBlessing.text);
+
+      if (!aiResult.approved) {
+        // Content rejected - show error and go back to edit
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'שלחו ברכה';
+        previewModal.classList.remove('active');
+
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+            '<div style="width:56px; height:56px; border-radius:50%; background:rgba(229,85,85,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem; color:#e55;">⚠️</div>' +
+            '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.5rem; margin:0 0 8px;">יש בעיה בברכה</h2>' +
+            '<p style="color:rgba(255,255,255,0.6); font-size:1rem; margin:0 0 8px;">הברכה מכילה תוכן לא מתאים לאירוע</p>' +
+            '<p style="color:#e55; font-size:0.9rem; background:rgba(229,85,85,0.1); padding:8px 12px; border-radius:6px; margin:12px 0 0;">' + (aiResult.reason || 'מילים פוגעניות או תמונה לא מתאימה') + '</p>' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(229,85,85,0.2)',
+          confirmButtonText: 'חזרה לעריכה',
+          confirmButtonColor: '#b8953e',
+          width: 380,
+        });
+        return;
+      }
+
+      // AI approved - send blessing
+      saveBlessing(eventId, currentBlessing);
+      previewModal.classList.remove('active');
+      formContainer.style.display = 'none';
+      successState.classList.add('active');
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'שלחו ברכה';
+      resetForm();
+
+      document.dispatchEvent(new Event('blessing-sent'));
+      if (window.confettiBurst) {
+        setTimeout(function() { window.confettiBurst(window.innerWidth / 2, window.innerHeight / 3, 120); }, 300);
+      }
+    } catch (err) {
+      console.error('AI check error:', err);
+      // If AI fails, send anyway
+      saveBlessing(eventId, currentBlessing);
+      previewModal.classList.remove('active');
+      formContainer.style.display = 'none';
+      successState.classList.add('active');
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'שלחו ברכה';
+      resetForm();
     }
   });
 

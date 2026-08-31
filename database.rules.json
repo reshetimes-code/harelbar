@@ -1,17 +1,51 @@
 {
   "rules": {
-    "blessings": {
+    "activeScreen": {
       ".read": true,
-      ".write": true,
-      ".indexOn": ["createdAt", "status"],
-      "$blessingId": {
+      ".write": true
+    },
+    "passwords": {
+      ".read": true,
+      ".write": true
+    },
+    "recyclebin": {
+      ".read": true,
+      ".write": true
+    },
+    "leads": {
+      ".read": true,
+      ".write": true
+    },
+    "events": {
+      ".read": true,
+      ".indexOn": ["meta/subAdminPassword"],
+      "$eventId": {
         ".write": true,
-        ".validate": "!newData.exists() || newData.hasChildren(['name', 'text', 'createdAt'])",
-        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
-        "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 5000" },
-        "phone": { ".validate": "newData.isString() && newData.val().length < 20" },
-        "photoDataUrl": { ".validate": "newData.isString() && newData.val().length < 2000000" },
-        "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected')" }
+        "meta": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['organizerName', 'organizerPhone', 'celebrantName', 'eventDate'])",
+          "organizerName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
+          "organizerPhone": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 20" },
+          "celebrantName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
+          "eventDate": { ".validate": "newData.isString()" }
+        },
+        "blessings": {
+          ".read": true,
+          ".write": true,
+          ".indexOn": ["createdAt", "status"],
+          "$blessingId": {
+            ".write": true,
+            ".validate": "!newData.exists() || newData.hasChildren(['name', 'text', 'createdAt'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
+            "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 5000" },
+            "photoDataUrl": { ".validate": "newData.isString() && newData.val().length < 5000000" },
+            "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected')" }
+          }
+        },
+        "screenControl": {
+          ".read": true,
+          ".write": true
+        }
       }
     }
   }

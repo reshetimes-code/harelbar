@@ -7,13 +7,32 @@
     "ignore": [
       "firebase.json",
       ".firebase",
+      ".firebase/**",
       ".git",
+      ".git/**",
       ".claude",
+      ".claude/**",
+      "__backups",
+      "__backups/**",
+      "functions",
+      "functions/**",
+      "node_modules",
+      "node_modules/**",
       "no",
+      "no/**",
+      "*.log",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
       ".gitignore"
     ],
+    "headers": [
+      { "source": "**/*.js", "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0" }] },
+      { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-cache, max-age=0" }] }
+    ],
     "rewrites": [
-      { "source": "/", "destination": "/welcome.html" }
+            { "source": "/e/**", "destination": "/blessing.html" },
+      { "source": "/connect", "destination": "/connect.html" },
+      { "source": "/admin", "destination": "/admin.html" }
     ]
   },
   "functions": [

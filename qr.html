@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QR Codes - בר המצווה של הראל</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>QR Codes</title>
+  <link rel="stylesheet" href="/css/style.css">
   <style>
     .qr-page {
       min-height: 100vh;
@@ -104,14 +104,14 @@
 <body>
   <div class="qr-page">
     <h1>QR Codes</h1>
-    <p class="subtitle">הדפיסו ושימו על שולחנות באירוע</p>
+    <p class="subtitle" id="qr-subtitle">הדפיסו ושימו על שולחנות באירוע</p>
 
     <div class="qr-grid">
       <div class="qr-card">
         <h2>✍️ כתיבת ברכה</h2>
         <p>לאורחים - סרקו וכתבו ברכה</p>
         <div id="qr-guests" style="display:inline-block;"></div>
-        <div class="qr-url">hchc.co.il</div>
+        <div class="qr-url" id="url-guests"></div>
         <button class="qr-download" onclick="downloadQR('qr-guests', 'qr-bless')">הורידו QR</button>
       </div>
 
@@ -119,7 +119,7 @@
         <h2>🖥 מסך ברכות</h2>
         <p>חיבור המסך למצגת</p>
         <div id="qr-screen" style="display:inline-block;"></div>
-        <div class="qr-url">hchc.co.il/screen.html</div>
+        <div class="qr-url" id="url-screen"></div>
         <button class="qr-download" onclick="downloadQR('qr-screen', 'qr-screen')">הורידו QR</button>
       </div>
 
@@ -135,12 +135,35 @@
     <a href="admin.html" class="qr-back">← חזרה לפאנל ניהול</a>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/storage.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
+    var eventId = getEventIdFromQuery();
+    if (!eventId) {
+      alert('לא צוין אירוע');
+      window.location.href = '/';
+    }
+
+    var guestUrl = 'https://hchc.co.il/e/' + eventId;
+    var screenUrl = 'https://hchc.co.il/screen.html?event=' + eventId;
+
+    document.getElementById('url-guests').textContent = 'hchc.co.il/e/' + eventId;
+    document.getElementById('url-screen').textContent = 'hchc.co.il/screen.html?event=' + eventId;
+
+    // Load celebrant name
+    getEventMeta(eventId).then(function(meta) {
+      if (meta && meta.celebrantName) {
+        document.getElementById('qr-subtitle').textContent = 'QR קודים לאירוע של ' + meta.celebrantName;
+      }
+    });
+
     var qrOpts = { width: 250, height: 250, colorDark: '#0c1425', colorLight: '#ffffff' };
 
-    new QRCode(document.getElementById('qr-guests'), Object.assign({ text: 'https://hchc.co.il' }, qrOpts));
-    new QRCode(document.getElementById('qr-screen'), Object.assign({ text: 'https://hchc.co.il/screen.html' }, qrOpts));
+    new QRCode(document.getElementById('qr-guests'), Object.assign({ text: guestUrl }, qrOpts));
+    new QRCode(document.getElementById('qr-screen'), Object.assign({ text: screenUrl }, qrOpts));
     new QRCode(document.getElementById('qr-admin'), Object.assign({ text: 'https://hchc.co.il/admin.html' }, qrOpts));
 
     function downloadQR(containerId, filename) {

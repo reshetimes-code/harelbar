@@ -1,5 +1,14 @@
-// ===== BOOK / PDF GENERATION LOGIC =====
+// ===== BOOK / PDF GENERATION LOGIC (Multi-Tenant) =====
 (function() {
+  var eventId = getEventIdFromQuery();
+  if (!eventId) {
+    alert('לא צוין אירוע');
+    window.location.href = '/';
+    return;
+  }
+
+  var celebrantName = '';
+
   const cardsGrid = document.getElementById('cards-grid');
   const statsEl = document.getElementById('stats');
   const emptyBook = document.getElementById('empty-book');
@@ -9,7 +18,15 @@
   const progressText = document.getElementById('progress-text');
 
   async function init() {
-    const blessings = await getAllBlessings();
+    // Load event meta
+    var meta = await getEventMeta(eventId);
+    if (meta) {
+      celebrantName = meta.celebrantName || '';
+      document.getElementById('book-subtitle').textContent = 'האירוע של ' + celebrantName;
+      document.title = 'ספר הברכות - ' + celebrantName;
+    }
+
+    const blessings = await getAllBlessings(eventId);
 
     if (blessings.length === 0) {
       cardsGrid.style.display = 'none';
@@ -18,9 +35,9 @@
       return;
     }
 
-    statsEl.textContent = `${blessings.length} ברכות`;
+    statsEl.textContent = blessings.length + ' ברכות';
 
-    blessings.forEach(b => {
+    blessings.forEach(function(b) {
       const wrapper = document.createElement('div');
       wrapper.innerHTML = renderCard(b);
       cardsGrid.appendChild(wrapper.firstElementChild);
@@ -30,20 +47,19 @@
   function createCoverElement(count) {
     const cover = document.createElement('div');
     cover.style.cssText = 'width:794px;height:1123px;background:#1a2744;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:Assistant,sans-serif;box-sizing:border-box;border:4px solid #d4a853;padding:40px;position:fixed;top:0;left:0;z-index:9999;';
-    cover.innerHTML = `
-      <div style="border:2px solid #d4a853;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;box-sizing:border-box;">
-        <h1 style="color:#d4a853;font-size:56px;font-weight:800;margin:0;">ספר הברכות</h1>
-        <p style="color:#f0d68a;font-size:36px;font-weight:700;margin:30px 0 0;">בר המצווה של הראלי</p>
-        <p style="color:#c8c8c8;font-size:24px;margin:40px 0 0;">${new Date().toLocaleDateString('he-IL')}</p>
-        <p style="color:#c8c8c8;font-size:20px;margin:20px 0 0;">${count} ברכות מהלב</p>
-        <p style="color:#d4a853;font-size:80px;margin:50px 0 0;">✡</p>
-      </div>
-    `;
+    cover.innerHTML =
+      '<div style="border:2px solid #d4a853;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;box-sizing:border-box;">' +
+        '<h1 style="color:#d4a853;font-size:56px;font-weight:800;margin:0;">ספר הברכות</h1>' +
+        '<p style="color:#f0d68a;font-size:36px;font-weight:700;margin:30px 0 0;">האירוע של ' + escapeHtml(celebrantName) + '</p>' +
+        '<p style="color:#c8c8c8;font-size:24px;margin:40px 0 0;">' + new Date().toLocaleDateString('he-IL') + '</p>' +
+        '<p style="color:#c8c8c8;font-size:20px;margin:20px 0 0;">' + count + ' ברכות מהלב</p>' +
+        '<p style="color:#d4a853;font-size:80px;margin:50px 0 0;">✡</p>' +
+      '</div>';
     return cover;
   }
 
   downloadBtn.addEventListener('click', async function() {
-    const blessings = await getAllBlessings();
+    const blessings = await getAllBlessings(eventId);
     if (blessings.length === 0) return;
 
     const { jsPDF } = window.jspdf;
@@ -58,7 +74,7 @@
     // --- Cover Page ---
     const cover = createCoverElement(blessings.length);
     document.body.appendChild(cover);
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(function(r) { setTimeout(r, 200); });
 
     try {
       const coverCanvas = await html2canvas(cover, {
@@ -87,7 +103,6 @@
       card.style.height = '1123px';
       card.style.borderRadius = '0';
 
-      // Pre-blur card-bg image using canvas since html2canvas doesn't support CSS blur
       const cardBg = card.querySelector('.card-bg');
       let origBgStyle = null;
       if (cardBg) {
@@ -104,18 +119,18 @@
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.src = urlMatch[1];
-            await new Promise(r => { img.onload = r; img.onerror = r; });
+            await new Promise(function(r) { img.onload = r; img.onerror = r; });
             ctx.drawImage(img, -60, -60, 920, 1220);
             const blurredUrl = blurCanvas.toDataURL();
             cardBg.style.filter = 'none';
-            cardBg.style.backgroundImage = `url('${blurredUrl}')`;
+            cardBg.style.backgroundImage = "url('" + blurredUrl + "')";
             cardBg.style.transform = 'none';
             cardBg.style.inset = '0';
           } catch(e) {}
         }
       }
 
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(function(r) { setTimeout(r, 50); });
 
       const canvas = await html2canvas(card, {
         scale: 3,
@@ -124,7 +139,6 @@
         logging: false,
       });
 
-      // Restore original styles
       if (cardBg && origBgStyle !== null) {
         cardBg.style.cssText = origBgStyle;
       }
@@ -136,10 +150,11 @@
       pdf.addPage();
       pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
 
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(function(r) { setTimeout(r, 50); });
     }
 
-    pdf.save('ספר_ברכות_הראלי.pdf');
+    var filename = 'ספר_ברכות_' + (celebrantName || 'אירוע') + '.pdf';
+    pdf.save(filename);
 
     progressContainer.classList.remove('active');
     downloadBtn.disabled = false;
@@ -148,7 +163,7 @@
   function updateProgress(current, total) {
     const pct = Math.round((current / total) * 100);
     progressFill.style.width = pct + '%';
-    progressText.textContent = `מעבד ברכה ${current} מתוך ${total}...`;
+    progressText.textContent = 'מעבד ברכה ' + current + ' מתוך ' + total + '...';
   }
 
   init();

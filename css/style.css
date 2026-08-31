@@ -40,6 +40,8 @@ body {
   min-height: 100vh;
   line-height: 1.7;
   font-size: 20px;
+  max-width: 100vw;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -745,20 +747,23 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 5vh 8vw;
+  padding: 8vh 8vw;
   max-width: 900px;
   width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* Square photo */
 .card-photo {
-  width: 45vh;
-  height: 45vh;
+  width: 35vh;
+  height: 35vh;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-  margin-bottom: 2.5vh;
+  margin-bottom: 2vh;
   flex-shrink: 1;
   min-width: 120px;
   min-height: 120px;
@@ -803,6 +808,60 @@ body {
   text-shadow: 0 1px 10px rgba(0,0,0,0.3);
   overflow: hidden;
   flex-shrink: 1;
+}
+
+/* Livelier styling only for the public screen slideshow */
+.screen-card .card-bg {
+  filter: blur(48px) saturate(1.55) brightness(0.62);
+}
+
+.screen-card .card-overlay {
+  background:
+    radial-gradient(ellipse at 18% 18%, var(--slide-a, rgba(91,141,239,0.22)) 0%, transparent 44%),
+    radial-gradient(ellipse at 82% 20%, var(--slide-b, rgba(45,212,191,0.16)) 0%, transparent 42%),
+    radial-gradient(ellipse at 50% 82%, var(--slide-c, rgba(244,198,94,0.12)) 0%, transparent 52%),
+    radial-gradient(ellipse at center, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.50) 100%);
+}
+
+.screen-card .blessing-card.no-photo .card-overlay {
+  background:
+    radial-gradient(ellipse at 18% 18%, var(--slide-a, rgba(91,141,239,0.30)) 0%, transparent 52%),
+    radial-gradient(ellipse at 84% 26%, var(--slide-b, rgba(45,212,191,0.22)) 0%, transparent 48%),
+    radial-gradient(ellipse at 50% 88%, var(--slide-c, rgba(244,198,94,0.18)) 0%, transparent 58%),
+    linear-gradient(135deg, rgba(8,28,52,0.90) 0%, rgba(12,20,37,0.80) 48%, rgba(6,16,32,0.92) 100%);
+}
+
+.screen-card .blessing-card.no-photo::before {
+  color: var(--slide-accent, #d4b065);
+  opacity: 0.08;
+}
+
+.screen-card .card-photo {
+  box-shadow: 0 12px 46px rgba(0,0,0,0.34), 0 0 38px var(--slide-a, rgba(91,141,239,0.16));
+}
+
+.screen-card .card-text {
+  overflow: visible;
+  line-height: 1.95;
+  padding-bottom: 0.18em;
+}
+
+.screen-card .card-divider {
+  background: var(--slide-accent, var(--gold));
+  opacity: 0.88;
+  box-shadow: 0 0 18px var(--slide-accent, var(--gold));
+}
+
+.screen-card .card-decor {
+  color: var(--slide-accent, var(--gold));
+}
+
+.screen-card .card-decor-line {
+  background: linear-gradient(90deg, transparent, var(--slide-accent, rgba(184,149,62,0.2)), transparent);
+}
+
+.screen-card .card-decor-corner {
+  border-color: var(--slide-accent, rgba(184,149,62,0.15));
 }
 
 /* ================================================================
@@ -1044,12 +1103,12 @@ body {
 
 /* ===== ADAPTIVE CARD SIZES ===== */
 /* Small text (< 120 chars) - big photo, big text */
-.card-size-sm .card-photo { width: 50vh; height: 50vh; }
+.card-size-sm .card-photo { width: 38vh; height: 38vh; }
 .card-size-sm .card-name { font-size: 3.5rem; }
 .card-size-sm .card-text { font-size: 1.8rem; }
 
 /* Medium text (120-250 chars) - default */
-.card-size-md .card-photo { width: 42vh; height: 42vh; }
+.card-size-md .card-photo { width: 32vh; height: 32vh; }
 .card-size-md .card-name { font-size: 3rem; }
 .card-size-md .card-text { font-size: 1.5rem; }
 
@@ -1075,6 +1134,12 @@ body {
 .no-photo.card-size-lg .card-text { font-size: 1.4rem; }
 .no-photo.card-size-xl .card-name { font-size: 2.5rem; }
 .no-photo.card-size-xl .card-text { font-size: 1.2rem; }
+
+/* Screen slideshow photo size - 20% larger than the base adaptive sizes */
+.screen-card .card-size-sm .card-photo { width: 46vh; height: 46vh; }
+.screen-card .card-size-md .card-photo { width: 38vh; height: 38vh; }
+.screen-card .card-size-lg .card-photo { width: 38vh; height: 38vh; }
+.screen-card .card-size-xl .card-photo { width: 24vh; height: 24vh; }
 
 /* Cards inside modal preview */
 .modal-content .blessing-card {

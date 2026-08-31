@@ -1,5 +1,20 @@
-// ===== SLIDESHOW LOGIC =====
+// ===== SLIDESHOW LOGIC (Multi-Tenant) =====
 (function() {
+  var eventId = getEventIdFromQuery();
+  if (!eventId) {
+    alert('לא צוין אירוע');
+    window.location.href = '/';
+    return;
+  }
+
+  // Load event meta
+  getEventMeta(eventId).then(function(meta) {
+    if (meta && meta.celebrantName) {
+      var titleEl = document.getElementById('slideshow-title');
+      if (titleEl) titleEl.textContent = 'ברכות לכבוד ' + meta.celebrantName;
+    }
+  });
+
   const slidesContainer = document.getElementById('slides-container');
   const emptyState = document.getElementById('empty-state');
   const swiperEl = document.getElementById('slideshow-swiper');
@@ -45,18 +60,18 @@
 
   function showToast() {
     newToast.classList.add('show');
-    setTimeout(() => newToast.classList.remove('show'), 3000);
+    setTimeout(function() { newToast.classList.remove('show'); }, 3000);
   }
 
   function updateCount(count) {
-    countBadge.textContent = `${count} ברכות`;
+    countBadge.textContent = count + ' ברכות';
   }
 
   // Real-time listener
   let firstLoad = true;
   let knownIds = new Set();
 
-  onBlessingsChanged(function(blessings) {
+  onBlessingsChanged(eventId, function(blessings) {
     updateCount(blessings.length);
 
     if (blessings.length === 0) {
@@ -69,16 +84,16 @@
     swiperEl.style.display = 'block';
 
     if (firstLoad) {
-      blessings.forEach(b => {
+      blessings.forEach(function(b) {
         addSlide(b);
         knownIds.add(b.id);
       });
       initSwiper();
       firstLoad = false;
     } else {
-      const newOnes = blessings.filter(b => !knownIds.has(b.id));
+      var newOnes = blessings.filter(function(b) { return !knownIds.has(b.id); });
       if (newOnes.length > 0) {
-        newOnes.forEach(b => {
+        newOnes.forEach(function(b) {
           knownIds.add(b.id);
           addSlide(b);
         });
@@ -105,7 +120,7 @@
   speedBtn.addEventListener('click', function() {
     speedIndex = (speedIndex + 1) % speeds.length;
     currentSpeed = speeds[speedIndex].delay;
-    speedBtn.textContent = `מהירות: ${speeds[speedIndex].label}`;
+    speedBtn.textContent = 'מהירות: ' + speeds[speedIndex].label;
 
     if (swiper) {
       swiper.params.autoplay.delay = currentSpeed;
@@ -119,7 +134,7 @@
   // Fullscreen
   fullscreenBtn.addEventListener('click', function() {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(function() {});
       fullscreenBtn.textContent = 'צא ממסך מלא';
     } else {
       document.exitFullscreen();
