@@ -43,6 +43,15 @@
     font-size: 0.95rem;
   }
   @keyframes pageLoaderSpin { to { transform: rotate(360deg); } }
+
+  @keyframes welcomeQuestionPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+  }
+  .welcome-question-pulse {
+    display: inline-block;
+    animation: welcomeQuestionPulse 1.1s ease-in-out infinite;
+  }
 </style>
 </head>
 <body>
@@ -259,7 +268,7 @@
               '<p style="color:#d4b065; font-size:1.3rem; margin:0 0 16px; font-weight:600;">האירוע של ' + celebrant + '</p>' +
               '<div style="width:40px; height:1px; background:#d4b065; margin:0 auto 16px; opacity:0.4;"></div>' +
               '<p style="color:#fff; font-size:1.25rem; font-weight:700; line-height:1.6; margin:0 0 18px;">שימו לב, מיד תעברו לעמוד יצירת הברכה...</p>' +
-              '<p style="color:#fff; font-size:1.25rem; font-weight:700; line-height:1.6; margin:0 0 8px; -webkit-text-stroke:1px #e53935; text-stroke:1px #e53935;">האם גם אתם חוגגים אירוע בקרוב?</p>' +
+              '<p style="color:#fff; font-size:1.25rem; font-weight:700; line-height:1.6; margin:0 0 8px;"><span class="welcome-question-pulse" style="-webkit-text-stroke:1px #e53935; text-stroke:1px #e53935;">האם גם אתם חוגגים אירוע בקרוב?</span></p>' +
               '<p style="color:rgba(255,255,255,0.5); font-size:0.95rem; line-height:1.7; margin:0;">נשמח לעזור גם לכם ליצור ערב בלתי נשכח ✨</p></div>',
             background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
             border: '1px solid rgba(255,255,255,0.15)',
