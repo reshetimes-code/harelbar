@@ -193,6 +193,10 @@
     downloadBtn.disabled = true;
     progressContainer.classList.add('active');
     if (exportOverlay) exportOverlay.classList.add('active');
+    // Swaps in the large, print-tuned photo/text sizing (css/style.css) for
+    // the whole export - the normal sizing here is tuned for the small
+    // on-screen preview thumbnail, not a full A4 print page.
+    cardsGrid.classList.add('pdf-export-active');
     progressFill.style.width = '2%';
     setExportStatus('אני מוריד... אנא המתן');
     await paintFrame();
@@ -330,6 +334,7 @@
       var detail = (err && (err.message || err.toString())) || 'שגיאה לא ידועה';
       alert('משהו השתבש בהכנת הקובץ (' + detail + '). נסו שוב - אם זה חוזר על עצמו, נסו ממכשיר אחר או עם פחות ברכות בו-זמנית.');
     } finally {
+      cardsGrid.classList.remove('pdf-export-active');
       progressContainer.classList.remove('active');
       if (exportOverlay) exportOverlay.classList.remove('active');
       progressFill.style.width = '0%';

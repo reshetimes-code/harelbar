@@ -1204,6 +1204,37 @@ body {
 .cards-grid .blessing-card .card-name { font-size: 1.4rem; }
 .cards-grid .blessing-card .card-text { font-size: 0.85rem; }
 
+/* PDF export: the card is temporarily resized to a full A4 page (794x1123)
+   for html2canvas to photograph, but the sizes above are tuned for the
+   small on-screen preview thumbnail and would otherwise leave a tiny photo
+   and tiny text stranded in the middle of a huge blank page. #cards-grid
+   gets this class only while a PDF is being generated (see book.js), and
+   the id + !important guarantee it wins over the preview sizing above and
+   the small-screen breakpoint below. */
+#cards-grid.pdf-export-active .blessing-card .card-photo {
+  width: 460px !important;
+  height: 460px !important;
+  border-radius: 20px !important;
+}
+#cards-grid.pdf-export-active .blessing-card .card-name {
+  font-size: 68px !important;
+}
+#cards-grid.pdf-export-active .blessing-card .card-text {
+  font-size: 34px !important;
+  max-width: 700px !important;
+  line-height: 1.7 !important;
+}
+#cards-grid.pdf-export-active .blessing-card .card-divider {
+  width: 90px !important;
+  height: 3px !important;
+}
+#cards-grid.pdf-export-active .blessing-card .card-content {
+  padding: 70px 55px !important;
+}
+#cards-grid.pdf-export-active .blessing-card .card-floral-divider {
+  max-width: 460px !important;
+}
+
 /* Cards inside demo grid */
 .demo-grid .blessing-card {
   width: 380px;
