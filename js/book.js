@@ -231,6 +231,7 @@
       const cards = cardsGrid.querySelectorAll('.blessing-card');
       const totalSteps = cards.length;
       let skippedCount = 0;
+      let firstSkipDetail = '';
 
       for (let i = 0; i < cards.length; i++) {
         updateProgress(i + 1, totalSteps);
@@ -272,6 +273,9 @@
           });
         } catch (renderErr) {
           console.error('Card ' + (i + 1) + ' failed to render, skipping it:', renderErr);
+          if (!firstSkipDetail) {
+            firstSkipDetail = (renderErr && (renderErr.message || renderErr.toString())) || 'שגיאה לא ידועה';
+          }
         }
 
         if (cardBg) cardBg.style.display = origBgDisplay || '';
@@ -315,7 +319,7 @@
       pdf.save(filename);
 
       if (skippedCount > 0) {
-        alert('הקובץ ירד, אבל ' + skippedCount + ' מתוך ' + totalSteps + ' ברכות לא הצליחו להיכנס אליו בגלל בעיה טכנית בעמוד שלהן ולכן לא נכללו. אפשר לנסות שוב מאוחר יותר.');
+        alert('הקובץ ירד, אבל ' + skippedCount + ' מתוך ' + totalSteps + ' ברכות לא הצליחו להיכנס אליו בגלל בעיה טכנית (' + firstSkipDetail + ') ולכן לא נכללו. אפשר לנסות שוב מאוחר יותר.');
       }
     } catch (err) {
       console.error('PDF export failed:', err);
