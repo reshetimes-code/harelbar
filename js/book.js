@@ -245,18 +245,22 @@
         card.style.borderRadius = '0';
 
         const cardBg = card.querySelector('.card-bg');
-        let origBgDisplay = null;
+        let origBgImage = null;
         let blurredCanvas = null;
         if (cardBg) {
-          origBgDisplay = cardBg.style.display;
           const bgImg = cardBg.style.backgroundImage;
           const urlMatch = bgImg && bgImg.match(/url\(['"]?(.*?)['"]?\)/);
           if (urlMatch) {
             blurredCanvas = await makeBlurredBackgroundCanvas(urlMatch[1]);
           }
-          // Hide the CSS background for the capture itself - we draw our
-          // own pre-blurred canvas underneath the result afterwards.
-          cardBg.style.display = 'none';
+          // Clear the background-image itself (not just hide the element)
+          // for the capture - html2canvas still tries to resolve/resize a
+          // background-image on a display:none element while pre-loading
+          // its resource cache, and the collapsed 0x0 box is exactly what
+          // was throwing "createPattern ... width or height of 0". We draw
+          // our own pre-blurred canvas underneath the result afterwards.
+          origBgImage = bgImg;
+          cardBg.style.backgroundImage = 'none';
         }
 
         // Photo cards had their real background hidden above, so capture
@@ -278,7 +282,7 @@
           }
         }
 
-        if (cardBg) cardBg.style.display = origBgDisplay || '';
+        if (cardBg) cardBg.style.backgroundImage = origBgImage || '';
         card.style.width = origWidth;
         card.style.height = origHeight;
         card.style.borderRadius = '';
