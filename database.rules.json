@@ -50,6 +50,10 @@
             "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected')" }
           }
         },
+        "trash": {
+          ".read": true,
+          ".write": true
+        },
         "screenControl": {
           ".read": true,
           ".write": true

@@ -31,6 +31,7 @@
   // Current selected event
   let currentEventId = null;
   let blessingsUnsubscribe = null;
+  let trashUnsubscribe = null;
   let leadsUnsubscribe = null;
   let isMainAdmin = false;
 
@@ -98,6 +99,7 @@
     loginScreen.style.display = 'flex';
     passwordInput.value = '';
     if (blessingsUnsubscribe) blessingsUnsubscribe();
+    if (trashUnsubscribe) { trashUnsubscribe(); trashUnsubscribe = null; }
     if (leadsUnsubscribe) { leadsUnsubscribe(); leadsUnsubscribe = null; }
   });
 
@@ -169,6 +171,10 @@
     if (blessingsUnsubscribe) {
       blessingsUnsubscribe();
       blessingsUnsubscribe = null;
+    }
+    if (trashUnsubscribe) {
+      trashUnsubscribe();
+      trashUnsubscribe = null;
     }
     if (leadsUnsubscribe) {
       leadsUnsubscribe();
@@ -947,6 +953,11 @@
       renderList(blessings);
     });
 
+    trashUnsubscribe = onTrashChanged(eventId, function(trashed) {
+      var trashCount = document.getElementById('trash-count');
+      if (trashCount) trashCount.textContent = trashed.length;
+    });
+
     // Load screen images preview (separate from blessings)
     loadDashboardScreenImages(eventId);
   }
@@ -1222,7 +1233,7 @@
     var item = deleteBtn.closest('.blessing-item');
     var name = item.querySelector('.blessing-item-name').textContent;
 
-    showConfirm('למחוק את הברכה של ' + name + '?', 'פעולה זו לא ניתנת לביטול', function() {
+    showConfirm('למחוק את הברכה של ' + name + '?', 'הברכה תועבר לסל המיחזור וניתן יהיה לשחזר אותה משם', function() {
       deleteBlessing(currentEventId, id);
     });
   });
@@ -1233,10 +1244,141 @@
     var blessings = await getAllBlessings(currentEventId);
     if (blessings.length === 0) return;
 
-    showConfirm('למחוק את כל ' + blessings.length + ' הברכות?', 'פעולה זו לא ניתנת לביטול', function() {
+    showConfirm('למחוק את כל ' + blessings.length + ' הברכות?', 'כל הברכות יועברו לסל המיחזור וניתן יהיה לשחזר אותן משם', function() {
       clearAllBlessings(currentEventId);
     });
   });
+
+  // ===== TRASH (recycle bin for deleted blessings) =====
+  var trashBtn = document.getElementById('trash-btn');
+  if (trashBtn) {
+    trashBtn.addEventListener('click', function() {
+      if (!currentEventId) return;
+      openTrashModal();
+    });
+  }
+
+  function openTrashModal() {
+    getTrashedBlessings(currentEventId).then(renderTrashModal);
+  }
+
+  function renderTrashModal(items) {
+    var listHtml;
+    if (items.length === 0) {
+      listHtml = '<p style="color:rgba(255,255,255,0.5); text-align:center; padding:24px 0;">סל המיחזור ריק</p>';
+    } else {
+      listHtml = items.map(function(b) {
+        var text = b.text || '';
+        var name = b.name || '(ללא שם)';
+        var deletedDate = b.deletedAt ? new Date(b.deletedAt).toLocaleDateString('he-IL', {
+          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+        }) : '';
+        var shortText = escapeHtml(text).substring(0, 50) + (text.length > 50 ? '...' : '');
+
+        return '<div class="trash-item" data-id="' + b.id + '" style="display:flex; align-items:center; gap:10px; padding:10px; border:1px solid rgba(255,255,255,0.1); border-radius:8px; margin-bottom:8px;">' +
+          (b.photoDataUrl && b.photoDataUrl.length > 10
+            ? '<img src="' + escapeHtml(b.photoDataUrl) + '" style="width:44px; height:44px; border-radius:8px; object-fit:cover; flex-shrink:0;">'
+            : '<div style="width:44px; height:44px; border-radius:8px; background:rgba(255,255,255,0.06); flex-shrink:0;"></div>') +
+          '<div style="flex:1; min-width:0; text-align:right;">' +
+            '<div style="color:#fff; font-weight:700; font-size:0.9rem;">' + escapeHtml(name) + '</div>' +
+            '<div style="color:rgba(255,255,255,0.55); font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + shortText + '</div>' +
+            '<div style="color:rgba(255,255,255,0.35); font-size:0.7rem;">נמחק: ' + deletedDate + '</div>' +
+          '</div>' +
+          '<div style="display:flex; flex-direction:column; gap:4px; flex-shrink:0;">' +
+            '<button class="trash-view-btn" data-id="' + b.id + '" style="background:none; border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-family:Assistant,sans-serif;">👁 פרטים</button>' +
+            '<button class="trash-restore-btn" data-id="' + b.id + '" style="background:none; border:1px solid rgba(46,204,113,0.5); color:#2ecc71; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-family:Assistant,sans-serif;">↩ שחזור</button>' +
+            '<button class="trash-purge-btn" data-id="' + b.id + '" style="background:none; border:1px solid rgba(229,85,85,0.4); color:#e55; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-family:Assistant,sans-serif;">מחק לצמיתות</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    Swal.fire({
+      html: '<div dir="rtl">' +
+        '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.3rem; margin:0 0 4px; text-align:center;">🗑 סל מיחזור</h2>' +
+        '<p style="color:rgba(255,255,255,0.4); font-size:0.8rem; margin:0 0 16px; text-align:center;">ברכות שנמחקו - ניתן לצפות בפרטים ולשחזר מכאן</p>' +
+        '<div style="max-height:420px; overflow-y:auto;">' + listHtml + '</div>' +
+      '</div>',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      color: '#fff',
+      showConfirmButton: false,
+      showCloseButton: true,
+      width: 480,
+      didOpen: function() {
+        var container = Swal.getHtmlContainer();
+        if (!container) return;
+        container.addEventListener('click', function(e) {
+          var viewBtn = e.target.closest('.trash-view-btn');
+          if (viewBtn) {
+            var vid = viewBtn.dataset.id;
+            db.ref('events/' + currentEventId + '/trash/' + vid).once('value', function(snap) {
+              var b = snap.val();
+              if (b) showTrashDetail(Object.assign({}, b, { id: vid }));
+            });
+            return;
+          }
+
+          var restoreBtn = e.target.closest('.trash-restore-btn');
+          if (restoreBtn) {
+            var rid = restoreBtn.dataset.id;
+            restoreBlessing(currentEventId, rid).then(function() {
+              Swal.fire({ text: 'הברכה שוחזרה בהצלחה', icon: 'success', timer: 1400, showConfirmButton: false, background: '#0c1425', color: '#fff' })
+                .then(openTrashModal);
+            });
+            return;
+          }
+
+          var purgeBtn = e.target.closest('.trash-purge-btn');
+          if (purgeBtn) {
+            var pid = purgeBtn.dataset.id;
+            Swal.close();
+            showConfirm('למחוק את הברכה לצמיתות?', 'פעולה זו לא ניתנת לביטול - הברכה תימחק סופית ולא ניתן יהיה לשחזר אותה', function() {
+              permanentlyDeleteBlessing(currentEventId, pid).then(openTrashModal);
+            });
+            return;
+          }
+        });
+      }
+    });
+  }
+
+  // Full details of one trashed blessing, with a restore action, before committing
+  function showTrashDetail(b) {
+    var text = b.text || '';
+    var name = b.name || '(ללא שם)';
+    var deletedDate = b.deletedAt ? new Date(b.deletedAt).toLocaleDateString('he-IL', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    }) : '';
+
+    Swal.fire({
+      html: '<div dir="rtl" style="text-align:center;">' +
+        (b.photoDataUrl && b.photoDataUrl.length > 10
+          ? '<img src="' + escapeHtml(b.photoDataUrl) + '" style="max-width:100%; max-height:220px; border-radius:10px; object-fit:cover; margin-bottom:14px;">'
+          : '') +
+        '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.2rem; margin:0 0 8px;">' + escapeHtml(name) + '</h2>' +
+        '<p style="color:rgba(255,255,255,0.85); font-size:0.95rem; line-height:1.7; white-space:pre-wrap; text-align:right; background:rgba(255,255,255,0.05); border-radius:8px; padding:12px; margin:0 0 10px;">' + escapeHtml(text) + '</p>' +
+        '<p style="color:rgba(255,255,255,0.4); font-size:0.75rem; margin:0;">נמחק ב-' + deletedDate + '</p>' +
+      '</div>',
+      background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      color: '#fff',
+      showDenyButton: true,
+      confirmButtonText: '↩ שחזור הברכה',
+      confirmButtonColor: '#2ecc71',
+      denyButtonText: 'חזרה לרשימה',
+      denyButtonColor: '#3a4560',
+      width: 420,
+    }).then(function(result) {
+      if (result.isConfirmed) {
+        restoreBlessing(currentEventId, b.id).then(function() {
+          Swal.fire({ text: 'הברכה שוחזרה בהצלחה', icon: 'success', timer: 1400, showConfirmButton: false, background: '#0c1425', color: '#fff' });
+        });
+      } else {
+        openTrashModal();
+      }
+    });
+  }
 
   // Confirm dialog
   function showConfirm(title, message, onConfirm) {

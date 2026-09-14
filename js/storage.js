@@ -15,6 +15,11 @@ function getBlessingsRef(eventId) {
   return 'events/' + eventId + '/blessings';
 }
 
+// Get the trash ref path for an event (soft-deleted blessings)
+function getTrashRef(eventId) {
+  return 'events/' + eventId + '/trash';
+}
+
 // ===== EVENT MANAGEMENT =====
 
 // Generate 4-digit password for sub-admin
@@ -105,14 +110,80 @@ function saveBlessing(eventId, blessing) {
   return blessing;
 }
 
-// Delete a single blessing from an event
+// Delete a single blessing from an event - soft delete: moves it to the
+// event's trash instead of erasing it, so an accidental click is recoverable.
 function deleteBlessing(eventId, id) {
-  return db.ref(getBlessingsRef(eventId) + '/' + id).remove();
+  var blessingRef = db.ref(getBlessingsRef(eventId) + '/' + id);
+  return blessingRef.once('value').then(function(snapshot) {
+    var blessing = snapshot.val();
+    if (!blessing) return;
+    blessing.deletedAt = new Date().toISOString();
+    return db.ref(getTrashRef(eventId) + '/' + id).set(blessing).then(function() {
+      return blessingRef.remove();
+    });
+  });
 }
 
-// Clear all blessings for an event
+// Clear all blessings for an event - also soft delete, moving every
+// blessing into trash in one batched update.
 function clearAllBlessings(eventId) {
-  return db.ref(getBlessingsRef(eventId)).remove();
+  return getAllBlessings(eventId).then(function(blessings) {
+    if (blessings.length === 0) return;
+    var now = new Date().toISOString();
+    var updates = {};
+    blessings.forEach(function(b) {
+      var copy = Object.assign({}, b, { deletedAt: now });
+      updates[getTrashRef(eventId) + '/' + b.id] = copy;
+      updates[getBlessingsRef(eventId) + '/' + b.id] = null;
+    });
+    return db.ref().update(updates);
+  });
+}
+
+// Restore a blessing from trash back to the live list
+function restoreBlessing(eventId, id) {
+  var trashRef = db.ref(getTrashRef(eventId) + '/' + id);
+  return trashRef.once('value').then(function(snapshot) {
+    var blessing = snapshot.val();
+    if (!blessing) return;
+    delete blessing.deletedAt;
+    return db.ref(getBlessingsRef(eventId) + '/' + id).set(blessing).then(function() {
+      return trashRef.remove();
+    });
+  });
+}
+
+// Permanently erase a single blessing from trash (irreversible)
+function permanentlyDeleteBlessing(eventId, id) {
+  return db.ref(getTrashRef(eventId) + '/' + id).remove();
+}
+
+// Get all trashed blessings for an event (one-time read), newest deleted first
+function getTrashedBlessings(eventId) {
+  return db.ref(getTrashRef(eventId)).once('value').then(function(snapshot) {
+    var data = snapshot.val();
+    if (!data) return [];
+    var arr = Object.keys(data).map(function(key) {
+      return Object.assign({}, data[key], { id: key });
+    });
+    arr.sort(function(a, b) { return (b.deletedAt || '').localeCompare(a.deletedAt || ''); });
+    return arr;
+  }).catch(function() { return []; });
+}
+
+// Listen for trash changes in real-time (returns unsubscribe function)
+function onTrashChanged(eventId, callback) {
+  var ref = db.ref(getTrashRef(eventId));
+  ref.on('value', function(snapshot) {
+    var data = snapshot.val();
+    if (!data) return callback([]);
+    var arr = Object.keys(data).map(function(key) {
+      return Object.assign({}, data[key], { id: key });
+    });
+    arr.sort(function(a, b) { return (b.deletedAt || '').localeCompare(a.deletedAt || ''); });
+    callback(arr);
+  });
+  return function() { ref.off('value'); };
 }
 
 // Listen for new blessings in real-time (returns unsubscribe function)
