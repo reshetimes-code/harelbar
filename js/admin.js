@@ -136,6 +136,19 @@
     }
   }
 
+  // Opens another same-site page inside a large modal (iframe) instead of
+  // navigating to it, so the admin stays on this exact event's panel.
+  function openInModal(url, title) {
+    Swal.fire({
+      title: title,
+      html: '<iframe src="' + url + '"></iframe>',
+      width: '95vw',
+      showConfirmButton: false,
+      showCloseButton: true,
+      customClass: { popup: 'modal-iframe-popup' }
+    });
+  }
+
   window.addEventListener('popstate', function() {
     if (adminPanel.style.display === 'none') return;
     var evId = new URLSearchParams(window.location.search).get('event');
@@ -531,11 +544,14 @@
       document.getElementById('detail-title').textContent = 'ניהול - ' + celebrant;
       document.getElementById('detail-subtitle').textContent = 'מארגן: ' + (meta.organizerName || '') + ' | תאריך: ' + (meta.eventDate || '');
 
-      // Update links
-      document.getElementById('detail-blessing-link').href = '/e/' + eventId;
-      // Screen button - activate screen for this event
-      document.getElementById('detail-book-link').href = 'book.html?event=' + eventId;
-      document.getElementById('detail-qr-link').href = 'qr.html?event=' + eventId;
+      // Book/QR open in-page (a modal) instead of navigating away, so the
+      // admin never loses their place in this event's panel.
+      document.getElementById('detail-book-link').onclick = function() {
+        openInModal('book.html?event=' + eventId, 'ספר ברכות');
+      };
+      document.getElementById('detail-qr-link').onclick = function() {
+        openInModal('qr.html?event=' + eventId, 'QR');
+      };
     });
 
     // Change sub-admin password button
@@ -754,6 +770,38 @@
       sessionStorage.removeItem('sub_admin_event');
       sessionStorage.removeItem('admin_access_password');
       window.location.href = '/';
+    };
+
+    // Blessing page link - same "open in new tab?" pattern as the screen
+    // button, so clicking it never navigates the admin panel itself away.
+    document.getElementById('detail-blessing-link').onclick = function() {
+      var blessingUrl = 'https://hchc.co.il/e/' + eventId;
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:center;">' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">דף הברכות</h2>' +
+          '<p style="color:rgba(255,255,255,0.5); font-size:0.9rem; margin-bottom:16px;">הכתובת לאורחים לכתיבת ברכה:</p>' +
+          '<div style="background:rgba(255,255,255,0.06); border-radius:8px; padding:12px; margin-bottom:16px; word-break:break-all;">' +
+            '<p style="color:var(--gold-light); font-size:0.85rem; margin:0; direction:ltr;">' + blessingUrl + '</p>' +
+          '</div>' +
+          '<button id="swal-open-blessing-tab" style="background:rgba(212,176,101,0.15); border:1px solid rgba(212,176,101,0.4); color:var(--gold-light); padding:14px 24px; border-radius:10px; font-family:Assistant,sans-serif; font-size:1rem; font-weight:700; cursor:pointer; width:100%;">📝 פתח את דף הברכות בטאב חדש</button>' +
+          '<button id="swal-copy-blessing-url" style="margin-top:12px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color:rgba(255,255,255,0.7); padding:8px 16px; border-radius:8px; font-family:Assistant,sans-serif; font-size:0.85rem; cursor:pointer;">📋 העתק כתובת</button>' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        showConfirmButton: false,
+        showCloseButton: true,
+        width: 420,
+        didOpen: function() {
+          document.getElementById('swal-open-blessing-tab').addEventListener('click', function() {
+            window.open(blessingUrl, '_blank');
+          });
+          document.getElementById('swal-copy-blessing-url').addEventListener('click', function() {
+            navigator.clipboard.writeText(blessingUrl).then(function() {
+              document.getElementById('swal-copy-blessing-url').textContent = '✅ הועתק!';
+            });
+          });
+        }
+      });
     };
 
     // Show screen URL/QR button
