@@ -101,13 +101,16 @@ function getAllBlessings(eventId) {
   });
 }
 
-// Save a new blessing to an event
+// Save a new blessing to an event. Returns the write's promise (previously
+// this fired the write and returned immediately without waiting - if the
+// write was rejected (e.g. photoDataUrl over the database.rules.json size
+// limit), the caller had no way to know and the guest saw a false "sent!"
+// success screen for a blessing that was never actually saved).
 function saveBlessing(eventId, blessing) {
   const ref = db.ref(getBlessingsRef(eventId)).push();
   blessing.id = ref.key;
   blessing.createdAt = new Date().toISOString();
-  ref.set(blessing);
-  return blessing;
+  return ref.set(blessing).then(function() { return blessing; });
 }
 
 // Delete a single blessing from an event - soft delete: moves it to the
@@ -241,36 +244,79 @@ function deleteLead(leadId) {
 
 // ===== UTILITIES =====
 
-// Compress image before upload
-function compressImage(file, maxWidth = 1200, quality = 0.75) {
+// Re-encodes a canvas as JPEG, adaptively lowering quality and then (if
+// still too big) resolution until it safely fits Firebase's per-field size
+// limit - database.rules.json caps blessings/$id/photoDataUrl at 5,000,000
+// base64 characters, and a write that exceeds it is rejected outright. This
+// is the shared safety net behind every photo upload path (both the direct
+// compressImage() below and the Cropper.js crop-confirm flow in guest.js)
+// so raising quality/resolution for a sharper, more vivid photo can never
+// cause an otherwise-fine blessing to silently fail to save.
+function encodeJpegWithBudget(canvas, opts) {
+  opts = opts || {};
+  var quality = opts.quality || 0.87;
+  var maxChars = opts.maxChars || 4500000; // margin under the 5,000,000 DB limit
+  var minDimension = opts.minDimension || 400;
+
+  var w = canvas.width, h = canvas.height;
+  var current = canvas;
+  var dataUrl = current.toDataURL('image/jpeg', quality);
+  var tries = 0;
+
+  while (dataUrl.length > maxChars && tries < 6) {
+    tries++;
+    if (quality > 0.5) {
+      quality -= 0.1;
+    } else if (Math.max(w, h) > minDimension) {
+      w = Math.max(minDimension, Math.round(w * 0.82));
+      h = Math.max(minDimension, Math.round(h * 0.82));
+      var scaled = document.createElement('canvas');
+      scaled.width = w;
+      scaled.height = h;
+      scaled.getContext('2d').drawImage(current, 0, 0, w, h);
+      current = scaled;
+    }
+    dataUrl = current.toDataURL('image/jpeg', quality);
+  }
+  return dataUrl;
+}
+
+// Compress a photo before upload. Reads the file via an object URL (not a
+// base64 FileReader round-trip) so the browser decodes it natively - modern
+// browsers (this has been the default for years, well before "old phones"
+// stopped getting OS updates) apply EXIF orientation automatically at that
+// point, so a portrait photo from any phone comes out right-side up without
+// any manual rotation math here. 1800px/quality 0.87 gives a noticeably
+// sharper, more vivid result than the old 1200px/0.75 default - still
+// comfortably inside the size budget for a normal photo, and
+// encodeJpegWithBudget() above guarantees it never goes over regardless.
+function compressImage(file, maxWidth = 1800, quality = 0.87) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const img = new Image();
-      img.onload = function() {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
 
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
+    img.onload = function() {
+      URL.revokeObjectURL(objectUrl);
+      const srcW = img.naturalWidth || img.width;
+      const srcH = img.naturalHeight || img.height;
+      if (!srcW || !srcH) { reject(new Error('image_read_failed')); return; }
 
-        canvas.width = width;
-        canvas.height = height;
+      const scale = Math.min(1, maxWidth / Math.max(srcW, srcH));
+      const width = Math.max(1, Math.round(srcW * scale));
+      const height = Math.max(1, Math.round(srcH * scale));
 
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
 
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(dataUrl);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
+      resolve(encodeJpegWithBudget(canvas, { quality: quality }));
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = function() {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('image_load_failed'));
+    };
+    img.src = objectUrl;
   });
 }
 

@@ -131,13 +131,13 @@
     if (!cropper) return;
 
     const canvas = cropper.getCroppedCanvas({
-      width: 1200,
-      height: 1200,
+      width: 1600,
+      height: 1600,
       imageSmoothingEnabled: true,
       imageSmoothingQuality: 'high',
     });
 
-    compressedPhoto = canvas.toDataURL('image/jpeg', 0.75);
+    compressedPhoto = encodeJpegWithBudget(canvas, { quality: 0.88 });
 
     // Close crop modal
     cropModal.classList.remove('active');
@@ -240,30 +240,42 @@
       }
 
       // AI approved - send blessing
-      saveBlessing(eventId, currentBlessing);
-      previewModal.classList.remove('active');
-      formContainer.style.display = 'none';
-      successState.classList.add('active');
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'שלחו ברכה';
-      resetForm();
-
-      document.dispatchEvent(new Event('blessing-sent'));
-      if (window.confettiBurst) {
-        setTimeout(function() { window.confettiBurst(window.innerWidth / 2, window.innerHeight / 3, 120); }, 300);
-      }
+      await sendBlessingAndShowSuccess();
     } catch (err) {
       console.error('AI check error:', err);
-      // If AI fails, send anyway
-      saveBlessing(eventId, currentBlessing);
-      previewModal.classList.remove('active');
-      formContainer.style.display = 'none';
-      successState.classList.add('active');
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'שלחו ברכה';
-      resetForm();
+      // If the AI check itself fails, don't block the guest - send anyway.
+      await sendBlessingAndShowSuccess();
     }
   });
+
+  // Actually writes the blessing and only shows the success screen once the
+  // write is confirmed - previously this fired saveBlessing() without
+  // waiting, so a write rejected by the database (e.g. a photo that ended
+  // up over the size limit) still showed "sent!" to the guest while nothing
+  // was actually saved.
+  async function sendBlessingAndShowSuccess() {
+    try {
+      await saveBlessing(eventId, currentBlessing);
+    } catch (saveErr) {
+      console.error('Save blessing failed:', saveErr);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'שלחו ברכה';
+      alert('שליחת הברכה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב - אם יש תמונה, אפשר גם לנסות עם תמונה אחרת.');
+      return;
+    }
+
+    previewModal.classList.remove('active');
+    formContainer.style.display = 'none';
+    successState.classList.add('active');
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'שלחו ברכה';
+    resetForm();
+
+    document.dispatchEvent(new Event('blessing-sent'));
+    if (window.confettiBurst) {
+      setTimeout(function() { window.confettiBurst(window.innerWidth / 2, window.innerHeight / 3, 120); }, 300);
+    }
+  }
 
   // Back to edit
   editBtn.addEventListener('click', function() {
