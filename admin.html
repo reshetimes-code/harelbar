@@ -148,6 +148,12 @@
     .event-delete-btn:hover {
       background: rgba(229,85,85,0.1);
     }
+    .admin-section.boxed {
+      background: var(--navy-card);
+      border: 1px solid var(--navy-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
 
     /* Mobile responsive */
     html, body {
@@ -389,11 +395,10 @@
           </div>
         </div>
 
-        <div class="admin-actions">
-          <button class="btn btn-secondary btn-sm" id="clear-btn">מחק הכל</button>
-        </div>
-
-        <div class="admin-section">
+        <div class="admin-section boxed">
+          <div class="admin-actions" style="justify-content:flex-end; margin-bottom:12px;">
+            <button class="btn btn-secondary btn-sm" id="clear-btn">מחק הכל</button>
+          </div>
           <div class="section-header">
             <h2>ברכות</h2>
             <span class="section-count" id="list-count">0</span>
@@ -408,7 +413,7 @@
           </div>
         </div>
 
-        <div class="admin-section">
+        <div class="admin-section boxed">
           <div class="section-header">
             <h2>🖼 תמונות למסך</h2>
             <span class="section-count" id="dashboard-screen-images-count">0</span>
