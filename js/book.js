@@ -17,6 +17,13 @@
   const progressContainer = document.getElementById('progress-container');
   const progressFill = document.getElementById('progress-fill');
   const progressText = document.getElementById('progress-text');
+  const exportOverlay = document.getElementById('export-overlay');
+  const exportOverlayText = document.getElementById('export-overlay-text');
+
+  function setExportStatus(text) {
+    progressText.textContent = text;
+    if (exportOverlayText) exportOverlayText.textContent = text;
+  }
 
   // Lets an admin hand the book page itself to the event owner (WhatsApp or
   // email) so the owner can open it and download the PDF on their own
@@ -179,21 +186,26 @@
 
   downloadBtn.addEventListener('click', async function() {
     if (downloadBtn.disabled) return;
-    const blessings = await getAllBlessings(eventId);
-    if (blessings.length === 0) return;
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = 210;
-    const pageHeight = 297;
 
     downloadBtn.disabled = true;
     progressContainer.classList.add('active');
+    if (exportOverlay) exportOverlay.classList.add('active');
     progressFill.style.width = '2%';
-    progressText.textContent = 'אני מוריד... אנא המתן';
+    setExportStatus('אני מוריד... אנא המתן');
     await paintFrame();
 
     try {
+      const blessings = await getAllBlessings(eventId);
+      if (blessings.length === 0) return;
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        throw new Error('ספריית ה-PDF לא נטענה (בדקו חיבור אינטרנט ורעננו את הדף)');
+      }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+
       // --- Cover Page ---
       const cover = createCoverElement(blessings.length);
       document.body.appendChild(cover);
@@ -264,7 +276,7 @@
       }
 
       progressFill.style.width = '100%';
-      progressText.textContent = 'אני מוריד... אנא המתן';
+      setExportStatus('אני מוריד... אנא המתן');
       await paintFrame();
 
       var filename = 'ספר_ברכות_' + (celebrantName || 'אירוע') + '.pdf';
@@ -275,6 +287,7 @@
       alert('משהו השתבש בהכנת הקובץ (' + detail + '). נסו שוב - אם זה חוזר על עצמו, נסו ממכשיר אחר או עם פחות ברכות בו-זמנית.');
     } finally {
       progressContainer.classList.remove('active');
+      if (exportOverlay) exportOverlay.classList.remove('active');
       progressFill.style.width = '0%';
       downloadBtn.disabled = false;
     }
@@ -283,7 +296,7 @@
   function updateProgress(current, total) {
     const pct = Math.round((current / total) * 100);
     progressFill.style.width = pct + '%';
-    progressText.textContent = 'מעבד ברכה ' + current + ' מתוך ' + total + '...';
+    setExportStatus('אני מוריד... אנא המתן (' + current + ' מתוך ' + total + ')');
   }
 
   init();

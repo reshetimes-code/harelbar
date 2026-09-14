@@ -38,6 +38,13 @@
     <p class="progress-text" id="progress-text">מכין PDF...</p>
   </div>
 
+  <!-- Full-screen loader shown for the whole export, so it's impossible to
+       miss regardless of scroll position (e.g. inside the admin iframe) -->
+  <div class="export-overlay" id="export-overlay">
+    <div class="export-spinner"></div>
+    <p class="export-overlay-text" id="export-overlay-text">אני מוריד... אנא המתן</p>
+  </div>
+
   <!-- Cards Preview Grid -->
   <div class="cards-grid" id="cards-grid"></div>
 
