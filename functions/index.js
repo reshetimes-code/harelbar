@@ -378,6 +378,55 @@ exports.approvBlessing = onRequest(
   }
 );
 
+// HTTP endpoint to restore/permanently-purge a trashed blessing (multi-tenant).
+// Uses the Admin SDK so it can write a blessing back with its original
+// `status` intact - the client-side database rules deliberately forbid a
+// direct client write from ever setting `status` (that's what keeps a guest
+// from self-approving a new blessing), so a restore has to go through here.
+exports.manageTrash = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    const { event: eventId, id, action, password } = req.query;
+
+    if (!eventId || !id || !["restore", "purge"].includes(action)) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    if (!(await checkRateLimit("manageTrash", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    try {
+      const authorized = await isAuthorizedForEvent(eventId, password);
+      if (!authorized) {
+        res.status(403).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+
+      const trashRef = admin.database().ref(`/events/${eventId}/trash/${id}`);
+      const snapshot = await trashRef.once("value");
+      if (!snapshot.exists()) {
+        res.status(404).json({ ok: false, error: "not_found" });
+        return;
+      }
+
+      if (action === "restore") {
+        const blessing = snapshot.val();
+        delete blessing.deletedAt;
+        await admin.database().ref(`/events/${eventId}/blessings/${id}`).set(blessing);
+      }
+      await trashRef.remove();
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("manageTrash error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
 // Sub-admin login: takes a password, returns the matching eventId without
 // ever exposing the full password list to the client.
 exports.subAdminLogin = onRequest(

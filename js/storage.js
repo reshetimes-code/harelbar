@@ -140,23 +140,12 @@ function clearAllBlessings(eventId) {
   });
 }
 
-// Restore a blessing from trash back to the live list
-function restoreBlessing(eventId, id) {
-  var trashRef = db.ref(getTrashRef(eventId) + '/' + id);
-  return trashRef.once('value').then(function(snapshot) {
-    var blessing = snapshot.val();
-    if (!blessing) return;
-    delete blessing.deletedAt;
-    return db.ref(getBlessingsRef(eventId) + '/' + id).set(blessing).then(function() {
-      return trashRef.remove();
-    });
-  });
-}
-
-// Permanently erase a single blessing from trash (irreversible)
-function permanentlyDeleteBlessing(eventId, id) {
-  return db.ref(getTrashRef(eventId) + '/' + id).remove();
-}
+// Restoring a blessing and permanently purging it from trash both go through
+// the manageTrash Cloud Function (see js/admin.js) rather than a direct
+// client write here: restoring has to put the blessing's original `status`
+// back, and the database rules deliberately forbid a client from ever
+// writing a `status` field directly (that's what stops a guest from
+// self-approving a new blessing), so only the Admin SDK can do it.
 
 // Get all trashed blessings for an event (one-time read), newest deleted first
 function getTrashedBlessings(eventId) {

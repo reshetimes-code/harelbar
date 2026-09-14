@@ -15,6 +15,7 @@
   const GET_EVENT_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getEventPassword';
   const SET_EVENT_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/setEventPassword';
   const APPROVE_BLESSING_API = 'https://approvblessing-ayhgolerzq-uc.a.run.app';
+  const MANAGE_TRASH_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/manageTrash';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -1262,6 +1263,27 @@
     getTrashedBlessings(currentEventId).then(renderTrashModal);
   }
 
+  // Restoring a blessing has to go through the Admin SDK (manageTrash), not
+  // a direct client write - the database rules block a client from ever
+  // writing a `status` field, and a previously-approved blessing needs that
+  // status put back or it'll come back stuck in "AI checking" limbo.
+  function callManageTrashApi(action, id) {
+    return getAdminCredential().then(function(password) {
+      if (!password) return Promise.reject(new Error('no_password'));
+      return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
+        '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
+        '&password=' + encodeURIComponent(password))
+        .then(function(res) {
+          return res.json().catch(function() { return {}; }).then(function(data) {
+            if (!res.ok || data.ok === false) {
+              throw new Error(data.error || 'request_failed');
+            }
+            return data;
+          });
+        });
+    });
+  }
+
   function renderTrashModal(items) {
     var listHtml;
     if (items.length === 0) {
@@ -1322,9 +1344,11 @@
           var restoreBtn = e.target.closest('.trash-restore-btn');
           if (restoreBtn) {
             var rid = restoreBtn.dataset.id;
-            restoreBlessing(currentEventId, rid).then(function() {
+            callManageTrashApi('restore', rid).then(function() {
               Swal.fire({ text: 'הברכה שוחזרה בהצלחה', icon: 'success', timer: 1400, showConfirmButton: false, background: '#0c1425', color: '#fff' })
                 .then(openTrashModal);
+            }).catch(function() {
+              showScreenImageError('שחזור הברכה נכשל, נסו שוב');
             });
             return;
           }
@@ -1334,7 +1358,9 @@
             var pid = purgeBtn.dataset.id;
             Swal.close();
             showConfirm('למחוק את הברכה לצמיתות?', 'פעולה זו לא ניתנת לביטול - הברכה תימחק סופית ולא ניתן יהיה לשחזר אותה', function() {
-              permanentlyDeleteBlessing(currentEventId, pid).then(openTrashModal);
+              callManageTrashApi('purge', pid).then(openTrashModal).catch(function() {
+                showScreenImageError('המחיקה נכשלה, נסו שוב');
+              });
             });
             return;
           }
@@ -1371,8 +1397,10 @@
       width: 420,
     }).then(function(result) {
       if (result.isConfirmed) {
-        restoreBlessing(currentEventId, b.id).then(function() {
+        callManageTrashApi('restore', b.id).then(function() {
           Swal.fire({ text: 'הברכה שוחזרה בהצלחה', icon: 'success', timer: 1400, showConfirmButton: false, background: '#0c1425', color: '#fff' });
+        }).catch(function() {
+          showScreenImageError('שחזור הברכה נכשל, נסו שוב');
         });
       } else {
         openTrashModal();
