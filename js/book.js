@@ -152,12 +152,15 @@
 
   // Cheap stand-in for the old full-resolution canvas blur: shrink the photo
   // onto a tiny canvas (blur cost scales with pixel count, so this is ~100x
-  // fewer pixels than blurring at full card size) and let the browser's own
-  // upscaling when the CSS background is stretched back out produce the
-  // blur look for free. Visually indistinguishable behind text, dramatically
-  // faster, and immune to the previous crash mode where a slow/broken image
-  // load could leave the whole download stuck.
-  function makeBlurredBackground(url) {
+  // fewer pixels than blurring at full card size). Returns the tiny canvas
+  // itself (not a data URL) - the caller draws it directly onto the final
+  // page canvas rather than setting it as a CSS background-image, which
+  // sidesteps an html2canvas bug where certain background-image render
+  // sizes crash internally ("Failed to execute 'createPattern' ... width
+  // or height of 0"). Never rejects - a broken/slow image just yields null
+  // and the card falls back to a plain navy background instead of a photo
+  // backdrop, so one bad photo can never hang or crash the whole export.
+  function makeBlurredBackgroundCanvas(url) {
     return new Promise(function(resolve) {
       var img = new Image();
       img.crossOrigin = 'anonymous';
@@ -172,9 +175,9 @@
           ctx.filter = 'blur(6px) saturate(1.3) brightness(0.5)';
           var ow = tw * 1.16, oh = th * 1.16;
           ctx.drawImage(img, -(ow - tw) / 2, -(oh - th) / 2, ow, oh);
-          finish(c.toDataURL('image/jpeg', 0.7));
+          finish(c);
         } catch (e) {
-          finish(null); // e.g. tainted canvas - fall back to the plain photo
+          finish(null); // e.g. tainted canvas - fall back to plain navy
         }
       };
       img.onerror = function() { finish(null); };
@@ -227,6 +230,7 @@
       // --- Blessing Pages ---
       const cards = cardsGrid.querySelectorAll('.blessing-card');
       const totalSteps = cards.length;
+      let skippedCount = 0;
 
       for (let i = 0; i < cards.length; i++) {
         updateProgress(i + 1, totalSteps);
@@ -240,39 +244,67 @@
         card.style.borderRadius = '0';
 
         const cardBg = card.querySelector('.card-bg');
-        let origBgStyle = null;
+        let origBgDisplay = null;
+        let blurredCanvas = null;
         if (cardBg) {
-          origBgStyle = cardBg.style.cssText;
+          origBgDisplay = cardBg.style.display;
           const bgImg = cardBg.style.backgroundImage;
           const urlMatch = bgImg && bgImg.match(/url\(['"]?(.*?)['"]?\)/);
           if (urlMatch) {
-            const blurredUrl = await makeBlurredBackground(urlMatch[1]);
-            if (blurredUrl) {
-              cardBg.style.filter = 'none';
-              cardBg.style.backgroundImage = "url('" + blurredUrl + "')";
-              cardBg.style.transform = 'none';
-              cardBg.style.inset = '0';
-            }
+            blurredCanvas = await makeBlurredBackgroundCanvas(urlMatch[1]);
           }
+          // Hide the CSS background for the capture itself - we draw our
+          // own pre-blurred canvas underneath the result afterwards.
+          cardBg.style.display = 'none';
         }
 
-        const canvas = await html2canvas(card, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: null,
-          logging: false,
-        });
-
-        if (cardBg && origBgStyle !== null) {
-          cardBg.style.cssText = origBgStyle;
+        // Photo cards had their real background hidden above, so capture
+        // them transparently and paint our own backdrop in underneath;
+        // no-photo cards already have an opaque gradient covering the
+        // whole box, so a plain navy base is just a safety net for them.
+        let canvas = null;
+        try {
+          canvas = await html2canvas(card, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: cardBg ? null : '#1a2744',
+            logging: false,
+          });
+        } catch (renderErr) {
+          console.error('Card ' + (i + 1) + ' failed to render, skipping it:', renderErr);
         }
+
+        if (cardBg) cardBg.style.display = origBgDisplay || '';
         card.style.width = origWidth;
         card.style.height = origHeight;
         card.style.borderRadius = '';
 
+        if (!canvas) {
+          skippedCount++;
+          continue; // one bad card should never sink the whole book
+        }
+
+        if (cardBg) {
+          const composite = document.createElement('canvas');
+          composite.width = canvas.width;
+          composite.height = canvas.height;
+          const cctx = composite.getContext('2d');
+          cctx.fillStyle = '#1a2744';
+          cctx.fillRect(0, 0, composite.width, composite.height);
+          if (blurredCanvas) {
+            cctx.drawImage(blurredCanvas, 0, 0, composite.width, composite.height);
+          }
+          cctx.drawImage(canvas, 0, 0);
+          canvas = composite;
+        }
+
         const imgData = canvas.toDataURL('image/jpeg', 0.92);
         pdf.addPage();
         pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
+      }
+
+      if (skippedCount > 0) {
+        console.warn(skippedCount + ' blessing(s) could not be rendered and were skipped.');
       }
 
       progressFill.style.width = '100%';
@@ -281,6 +313,10 @@
 
       var filename = 'ספר_ברכות_' + (celebrantName || 'אירוע') + '.pdf';
       pdf.save(filename);
+
+      if (skippedCount > 0) {
+        alert('הקובץ ירד, אבל ' + skippedCount + ' מתוך ' + totalSteps + ' ברכות לא הצליחו להיכנס אליו בגלל בעיה טכנית בעמוד שלהן ולכן לא נכללו. אפשר לנסות שוב מאוחר יותר.');
+      }
     } catch (err) {
       console.error('PDF export failed:', err);
       var detail = (err && (err.message || err.toString())) || 'שגיאה לא ידועה';
