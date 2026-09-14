@@ -271,7 +271,8 @@
       pdf.save(filename);
     } catch (err) {
       console.error('PDF export failed:', err);
-      alert('משהו השתבש בהכנת הקובץ. נסו שוב - אם זה חוזר על עצמו, נסו ממכשיר אחר או עם פחות ברכות בו-זמנית.');
+      var detail = (err && (err.message || err.toString())) || 'שגיאה לא ידועה';
+      alert('משהו השתבש בהכנת הקובץ (' + detail + '). נסו שוב - אם זה חוזר על עצמו, נסו ממכשיר אחר או עם פחות ברכות בו-זמנית.');
     } finally {
       progressContainer.classList.remove('active');
       progressFill.style.width = '0%';
