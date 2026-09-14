@@ -605,6 +605,7 @@
     let activeCard = 'A';
     let autoTimer = null;
     let slideIntervalMs = 13000;
+    let qrIntervalMs = null; // null = use slideIntervalMs (same time as the rest of the slider)
     const slideThemes = ['theme-sunrise', 'theme-lagoon', 'theme-orchid', 'theme-meadow', 'theme-royal', 'theme-rose'];
     let slideThemeIndex = 0;
     // Default (always-on) behavior: after every 3 slide changes, a big QR slide is shown
@@ -673,23 +674,33 @@
       if (slideChangeCount >= QR_SLIDE_EVERY) {
         slideChangeCount = 0;
         showQrSlide();
+        scheduleNext(qrIntervalMs != null ? qrIntervalMs : slideIntervalMs);
         return;
       }
 
       if (screenImages.length > 0 && blessingsSinceImage >= 2) {
         showImageSlide(getNextScreenImage());
         blessingsSinceImage = 0;
+        scheduleNext(slideIntervalMs);
         return;
       }
 
       currentIndex = (currentIndex + 1) % blessings.length;
       showCard(blessings[currentIndex]);
       blessingsSinceImage++;
+      scheduleNext(slideIntervalMs);
+    }
+
+    // Self-scheduling timer (instead of a fixed setInterval) so each slide type
+    // can stay on screen for its own duration (e.g. the QR slide can be longer
+    // than regular slides, to give guests time to scan it).
+    function scheduleNext(delayMs) {
+      if (autoTimer) clearTimeout(autoTimer);
+      autoTimer = setTimeout(nextCard, delayMs);
     }
 
     function startAutoPlay() {
-      if (autoTimer) clearInterval(autoTimer);
-      autoTimer = setInterval(nextCard, slideIntervalMs);
+      scheduleNext(slideIntervalMs);
     }
 
     function showNewBlessingAlert(blessing) {
@@ -713,6 +724,21 @@
         seconds = 13;
       }
       slideIntervalMs = Math.round(seconds) * 1000;
+      if (slideshowStarted) {
+        startAutoPlay();
+      }
+    });
+
+    // Optional independent duration for the QR slide (so guests have more time to scan).
+    // Unset/invalid = fall back to slideIntervalMs, same as every other slide.
+    db.ref('events/' + eventId + '/screenControl/qrIntervalSeconds').on('value', function(snap) {
+      var val = snap.val();
+      var seconds = Number(val);
+      if (val === null || val === undefined || !Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
+        qrIntervalMs = null;
+      } else {
+        qrIntervalMs = Math.round(seconds) * 1000;
+      }
       if (slideshowStarted) {
         startAutoPlay();
       }
@@ -778,7 +804,7 @@
         blessingsSinceImage = 0;
         slideChangeCount = 0;
         knownIds = new Set();
-        if (autoTimer) clearInterval(autoTimer);
+        if (autoTimer) clearTimeout(autoTimer);
         // Clear displayed cards
         if (cardA) { cardA.classList.remove('active'); cardA.innerHTML = ''; }
         if (cardB) { cardB.classList.remove('active'); cardB.innerHTML = ''; }
@@ -838,7 +864,6 @@
         e.preventDefault();
         if (slideshowStarted) {
           nextCard();
-          startAutoPlay();
         }
       }
     });

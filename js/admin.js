@@ -92,6 +92,8 @@
     sessionStorage.removeItem('sub_admin_event');
     sessionStorage.removeItem('admin_access_password');
     isMainAdmin = false;
+    urlEvent = null;
+    history.pushState({}, '', window.location.pathname);
     adminPanel.style.display = 'none';
     loginScreen.style.display = 'flex';
     passwordInput.value = '';
@@ -104,7 +106,14 @@
     adminPanel.style.display = 'block';
 
     if (isMainAdmin) {
-      showEventsView();
+      // If the URL still points at a specific event (e.g. the browser
+      // reloaded admin.html after navigating back from book.html/qr.html),
+      // land back on that event's detail view instead of the events list.
+      if (urlEvent) {
+        showEventDetail(urlEvent);
+      } else {
+        showEventsView();
+      }
     } else {
       // Sub-admin: go directly to their event
       var subEventId = sessionStorage.getItem('sub_admin_event');
@@ -114,11 +123,36 @@
     }
   }
 
+  // Keep the URL's ?event= param in sync with the visible view so that
+  // leaving to another page (book.html, qr.html...) and coming back -
+  // via browser back or a fresh reload - restores the same event instead
+  // of dropping to the main events list.
+  function syncEventUrl(eventId) {
+    if (!isMainAdmin) return;
+    var basePath = window.location.pathname;
+    var newUrl = eventId ? (basePath + '?event=' + encodeURIComponent(eventId)) : basePath;
+    if (window.location.pathname + window.location.search !== newUrl) {
+      history.pushState({ eventId: eventId || null }, '', newUrl);
+    }
+  }
+
+  window.addEventListener('popstate', function() {
+    if (adminPanel.style.display === 'none') return;
+    var evId = new URLSearchParams(window.location.search).get('event');
+    if (evId) {
+      showEventDetail(evId);
+    } else if (isMainAdmin) {
+      showEventsView();
+    }
+  });
+
   // ===== EVENTS LIST VIEW =====
   function showEventsView() {
     eventsView.style.display = 'block';
     eventDetailView.style.display = 'none';
     if (leadsView) leadsView.style.display = 'none';
+    var sideBackBtn = document.getElementById('back-to-events-side');
+    if (sideBackBtn) sideBackBtn.style.display = 'none';
     if (blessingsUnsubscribe) {
       blessingsUnsubscribe();
       blessingsUnsubscribe = null;
@@ -128,6 +162,7 @@
       leadsUnsubscribe = null;
     }
     currentEventId = null;
+    syncEventUrl(null);
     loadEvents();
   }
 
@@ -136,6 +171,10 @@
     eventsView.style.display = 'none';
     eventDetailView.style.display = 'none';
     leadsView.style.display = 'block';
+    var sideBackBtn = document.getElementById('back-to-events-side');
+    if (sideBackBtn) sideBackBtn.style.display = 'none';
+    currentEventId = null;
+    syncEventUrl(null);
     loadLeads();
   }
 
@@ -271,39 +310,46 @@
       const tbody = document.getElementById('events-tbody');
       tbody.innerHTML = events.map(function(ev) {
         var meta = ev.meta;
-        var status = meta.status || 'active';
-        var dateStr = meta.eventDate || '';
-        if (dateStr) {
-          try { dateStr = new Date(dateStr).toLocaleDateString('he-IL'); } catch(e) {}
+        var dateStr = '';
+        var isPast = null;
+        if (meta.eventDate) {
+          var rawDate = new Date(meta.eventDate);
+          if (!isNaN(rawDate.getTime())) {
+            dateStr = rawDate.toLocaleDateString('he-IL');
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var evDay = new Date(rawDate); evDay.setHours(0, 0, 0, 0);
+            isPast = evDay.getTime() < today.getTime();
+          }
         }
+        var statusClass = isPast === null ? 'unknown' : (isPast ? 'past' : 'upcoming');
+        var statusLabel = isPast === null ? 'לא ידוע' : (isPast ? 'עבר' : 'עתידי');
         var createdStr = '';
         if (meta.createdAt) {
           try { createdStr = new Date(meta.createdAt).toLocaleDateString('he-IL', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); } catch(e) {}
         }
         return '<tr class="event-row" data-event-id="' + ev.id + '">' +
-          '<td colspan="6" style="padding:0;">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;" class="event-header-row" data-event-id="' + ev.id + '">' +
-              '<div style="display:flex;align-items:center;gap:12px;">' +
-                '<span class="event-celebrant">' + escapeHtml(meta.celebrantName || '') + '</span>' +
-                '<span class="event-badge ' + status + '">' + (status === 'active' ? 'פעיל' : 'ארכיון') + '</span>' +
-                '<span style="color:var(--text-muted);font-size:0.8rem;">' + ev.blessingCount + ' ברכות</span>' +
+            '<td><span class="event-celebrant">' + escapeHtml(meta.celebrantName || '') + '</span></td>' +
+            '<td>' + escapeHtml(meta.organizerName || '—') + '</td>' +
+            '<td>' + (dateStr || '—') + '</td>' +
+            '<td>' + ev.blessingCount + ' ברכות</td>' +
+            '<td><span class="event-badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+            '<td style="text-align:left;">' +
+              '<span class="event-header-row" data-event-id="' + ev.id + '" style="cursor:pointer;display:inline-flex;">' +
+                '<span class="event-arrow" style="color:var(--text-muted);font-size:1.2rem;transition:transform 0.3s;">▼</span>' +
+              '</span>' +
+            '</td>' +
+          '</tr>' +
+          '<tr class="event-details-row" data-event-id="' + ev.id + '">' +
+            '<td colspan="6" style="padding:0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+              '<div class="event-details" style="display:none;padding:0 16px 14px;">' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+                  '<button class="event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול ברכות</button>' +
+                  '<button class="event-qr-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📥 QR</button>' +
+                  '<button class="event-access-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" data-phone="' + escapeHtml(meta.organizerPhone || '') + '" data-pwd="' + escapeHtml(meta.subAdminPassword || '') + '" style="background:none;border:1px solid rgba(37,211,102,0.3);color:#25D366;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📤 שלח גישה</button>' +
+                  '<button class="event-delete-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">🗑 מחק</button>' +
+                '</div>' +
               '</div>' +
-              '<span class="event-arrow" style="color:var(--text-muted);font-size:1.2rem;transition:transform 0.3s;">▼</span>' +
-            '</div>' +
-            '<div class="event-details" style="display:none;padding:0 16px 14px;border-top:1px solid rgba(255,255,255,0.05);">' +
-              '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;color:var(--text-muted);font-size:0.85rem;">' +
-                '<span>מארגן: ' + escapeHtml(meta.organizerName || '') + '</span>' +
-                '<span>|</span>' +
-                '<span>תאריך: ' + dateStr + '</span>' +
-              '</div>' +
-              '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
-                '<button class="event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול ברכות</button>' +
-                '<button class="event-qr-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📥 QR</button>' +
-                '<button class="event-access-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" data-phone="' + escapeHtml(meta.organizerPhone || '') + '" data-pwd="' + escapeHtml(meta.subAdminPassword || '') + '" style="background:none;border:1px solid rgba(37,211,102,0.3);color:#25D366;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">📤 שלח גישה</button>' +
-                '<button class="event-delete-btn" data-event-id="' + ev.id + '" data-name="' + escapeHtml(meta.celebrantName || '') + '" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;">🗑 מחק</button>' +
-              '</div>' +
-            '</div>' +
-          '</td>' +
+            '</td>' +
           '</tr>';
       }).join('');
   }
@@ -311,11 +357,12 @@
   // Event row click handlers
   document.getElementById('events-tbody').addEventListener('click', function(e) {
     // Toggle dropdown
-    var headerRow = e.target.closest('.event-header-row');
-    if (headerRow && !e.target.closest('button')) {
-      var tr = headerRow.closest('tr');
-      var details = tr.querySelector('.event-details');
+    var tr = e.target.closest('tr.event-row');
+    if (tr && !e.target.closest('button')) {
+      var detailsRow = tr.nextElementSibling;
+      var details = detailsRow && detailsRow.querySelector('.event-details');
       var arrow = tr.querySelector('.event-arrow');
+      if (!details) return;
       if (details.style.display === 'none') {
         details.style.display = 'block';
         arrow.style.transform = 'rotate(180deg)';
@@ -468,10 +515,14 @@
     currentEventId = eventId;
     eventsView.style.display = 'none';
     eventDetailView.style.display = 'block';
+    if (leadsView) leadsView.style.display = 'none';
+    syncEventUrl(eventId);
 
     // Hide back button for sub-admin
     var backBtn = document.getElementById('back-to-events');
     if (backBtn) backBtn.style.display = isMainAdmin ? 'inline-flex' : 'none';
+    var sideBackBtn = document.getElementById('back-to-events-side');
+    if (sideBackBtn) sideBackBtn.style.display = isMainAdmin ? 'inline-flex' : 'none';
 
     // Load event meta
     getEventMeta(eventId).then(function(meta) {
@@ -603,9 +654,18 @@
     };
 
     document.getElementById('slider-settings-btn').onclick = function() {
-      db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').once('value', function(snap) {
-        var currentSeconds = Number(snap.val()) || 13;
+      var screenControlRef = db.ref('events/' + eventId + '/screenControl');
+      Promise.all([
+        screenControlRef.child('slideIntervalSeconds').once('value'),
+        screenControlRef.child('qrIntervalSeconds').once('value')
+      ]).then(function(snaps) {
+        var currentSeconds = Number(snaps[0].val()) || 13;
         if (!Number.isFinite(currentSeconds) || currentSeconds < 1 || currentSeconds > 60) currentSeconds = 13;
+
+        var qrRaw = snaps[1].val();
+        var qrNum = Number(qrRaw);
+        var qrCustom = (qrRaw !== null && qrRaw !== undefined && Number.isFinite(qrNum) && qrNum >= 1 && qrNum <= 60);
+        var currentQrSeconds = qrCustom ? Math.round(qrNum) : currentSeconds;
 
         Swal.fire({
           html: '<div dir="rtl" style="text-align:center;">' +
@@ -613,6 +673,15 @@
             '<p style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;">כמה שניות להציג כל שקופית?</p>' +
             '<input type="number" id="swal-slider-seconds" min="1" max="60" value="' + currentSeconds + '" style="width:120px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.4rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
             '<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin:10px 0 0;">טווח מומלץ: 1-60 שניות</p>' +
+            '<div style="border-top:1px solid rgba(255,255,255,0.12);margin:18px 0 14px;"></div>' +
+            '<label style="display:flex;align-items:center;justify-content:center;gap:8px;color:rgba(255,255,255,0.75);font-size:0.88rem;cursor:pointer;">' +
+              '<input type="checkbox" id="swal-qr-different"' + (qrCustom ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer;">' +
+              'זמן שונה לשקופית ה-QR' +
+            '</label>' +
+            '<div id="swal-qr-wrap" style="margin-top:12px;' + (qrCustom ? '' : 'display:none;') + '">' +
+              '<p style="color:rgba(255,255,255,0.55);font-size:0.85rem;margin:0 0 10px;">כמה שניות להציג את שקופית ה-QR?</p>' +
+              '<input type="number" id="swal-qr-seconds" min="1" max="60" value="' + currentQrSeconds + '" style="width:120px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.4rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
+            '</div>' +
             '</div>',
           background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -621,17 +690,37 @@
           showCancelButton: true,
           cancelButtonText: 'ביטול',
           width: 380,
+          didOpen: function() {
+            var checkbox = document.getElementById('swal-qr-different');
+            var wrap = document.getElementById('swal-qr-wrap');
+            checkbox.addEventListener('change', function() {
+              wrap.style.display = checkbox.checked ? '' : 'none';
+            });
+          },
           preConfirm: function() {
             var seconds = Number(document.getElementById('swal-slider-seconds').value);
             if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
-              Swal.showValidationMessage('נא לבחור מספר בין 1 ל-60 שניות');
+              Swal.showValidationMessage('נא לבחור מספר בין 1 ל-60 שניות עבור הסליידר');
               return false;
             }
-            return Math.round(seconds);
+            var qrDifferent = document.getElementById('swal-qr-different').checked;
+            var qrSeconds = null;
+            if (qrDifferent) {
+              qrSeconds = Number(document.getElementById('swal-qr-seconds').value);
+              if (!Number.isFinite(qrSeconds) || qrSeconds < 1 || qrSeconds > 60) {
+                Swal.showValidationMessage('נא לבחור מספר בין 1 ל-60 שניות עבור שקופית ה-QR');
+                return false;
+              }
+              qrSeconds = Math.round(qrSeconds);
+            }
+            return { seconds: Math.round(seconds), qrSeconds: qrSeconds };
           }
         }).then(function(result) {
           if (!result.isConfirmed) return;
-          db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').set(result.value).then(function() {
+          screenControlRef.update({
+            slideIntervalSeconds: result.value.seconds,
+            qrIntervalSeconds: result.value.qrSeconds
+          }).then(function() {
             Swal.fire({
               text: 'הגדרת הסליידר נשמרה',
               icon: 'success',
@@ -877,6 +966,13 @@
   document.getElementById('back-to-events').addEventListener('click', function() {
     showEventsView();
   });
+
+  var backToEventsSideBtn = document.getElementById('back-to-events-side');
+  if (backToEventsSideBtn) {
+    backToEventsSideBtn.addEventListener('click', function() {
+      showEventsView();
+    });
+  }
 
   // Stats
   async function updateStats(blessings) {

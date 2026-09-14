@@ -47,13 +47,19 @@
       font-size: 0.75rem;
       font-weight: 600;
     }
-    .event-badge.active {
+    .event-badge.active,
+    .event-badge.upcoming {
       background: rgba(46,204,113,0.15);
       color: #2ecc71;
     }
-    .event-badge.archived {
+    .event-badge.archived,
+    .event-badge.unknown {
       background: rgba(255,255,255,0.08);
       color: var(--text-muted);
+    }
+    .event-badge.past {
+      background: rgba(229,85,85,0.15);
+      color: #e55;
     }
     .back-btn {
       display: inline-flex;
@@ -71,6 +77,39 @@
     }
     .back-btn:hover {
       color: var(--gold);
+    }
+    .side-back-btn {
+      display: none;
+      position: fixed;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 200;
+      align-items: center;
+      gap: 6px;
+      background: var(--navy-card);
+      border: 1px solid var(--navy-border);
+      color: var(--gold-light);
+      font-family: 'Assistant', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 100px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      transition: background 0.2s, color 0.2s;
+    }
+    .side-back-btn:hover {
+      background: rgba(184,149,62,0.12);
+      color: var(--gold);
+    }
+    @media (max-width: 480px) {
+      .side-back-btn span.side-back-label {
+        display: none;
+      }
+      .side-back-btn {
+        padding: 12px;
+      }
     }
     .event-delete-btn {
       background: none;
@@ -278,11 +317,14 @@
             <a id="detail-qr-link" href="#" class="btn btn-secondary btn-sm">QR</a>
             <button class="btn btn-secondary btn-sm" id="refresh-screens-btn">🔄 רענן מסכים</button>
             <button class="btn btn-secondary btn-sm" id="change-pwd-btn">🔑 סיסמת תת-מנהל</button>
-            <button class="btn btn-secondary btn-sm" id="notify-email-btn">📧 מייל להתראות</button>
             <button class="btn btn-sm" id="logout-event-btn" style="background:#e74c3c;color:#fff;">🚪 התנתק</button>
           </div>
         </div>
       </header>
+
+      <button class="side-back-btn" id="back-to-events-side" title="חזרה לכל האירועים">
+        <span>→</span><span class="side-back-label">כל האירועים</span>
+      </button>
 
       <div class="admin-container">
         <button class="back-btn" id="back-to-events">→ חזרה לאירועים</button>
@@ -290,8 +332,11 @@
         <!-- Approval Mode Switch -->
         <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 20px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between;">
           <div>
-            <span style="color:var(--gold-light); font-weight:700; font-size:0.95rem;" id="mode-label">מצב ביקורת אנושית</span>
-            <p style="color:var(--text-muted); font-size:0.75rem; margin:2px 0 0;" id="mode-desc">ברכות מחכות לאישור ידני + מייל</p>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="color:var(--gold-light); font-weight:700; font-size:0.95rem;" id="mode-label">מצב ביקורת אנושית</span>
+              <button class="btn btn-secondary btn-sm" id="notify-email-btn">📧 מייל להתראות</button>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.75rem; margin:6px 0 0;" id="mode-desc">ברכות מחכות לאישור ידני + מייל</p>
             <p style="color:var(--text-muted); font-size:0.7rem; margin:4px 0 0;" id="mode-email-hint"></p>
           </div>
           <label style="position:relative; display:inline-block; width:52px; height:28px; cursor:pointer;">
