@@ -123,13 +123,6 @@
         <button class="qr-download" onclick="downloadQR('qr-screen', 'qr-screen')">הורידו QR</button>
       </div>
 
-      <div class="qr-card">
-        <h2>⚙ פאנל ניהול</h2>
-        <p>כניסה לניהול ברכות</p>
-        <div id="qr-admin" style="display:inline-block;"></div>
-        <div class="qr-url">hchc.co.il/admin.html</div>
-        <button class="qr-download" onclick="downloadQR('qr-admin', 'qr-admin')">הורידו QR</button>
-      </div>
     </div>
 
     <a href="admin.html" class="qr-back">← חזרה לפאנל ניהול</a>
@@ -164,7 +157,6 @@
 
     new QRCode(document.getElementById('qr-guests'), Object.assign({ text: guestUrl }, qrOpts));
     new QRCode(document.getElementById('qr-screen'), Object.assign({ text: screenUrl }, qrOpts));
-    new QRCode(document.getElementById('qr-admin'), Object.assign({ text: 'https://hchc.co.il/admin.html' }, qrOpts));
 
     function downloadQR(containerId, filename) {
       var img = document.getElementById(containerId).querySelector('img');
