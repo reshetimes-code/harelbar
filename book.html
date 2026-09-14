@@ -23,7 +23,11 @@
     <button class="btn btn-primary" id="download-btn" style="width: auto;">
       הורד PDF
     </button>
-    <p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px;">להדפסת ספר הברכות: גודל A4 (210x297 מ"מ), מתאים לשליחה ישירה לבית דפוס</p>
+    <button class="btn btn-secondary" id="share-book-btn" style="width: auto;">
+      שתפו את הקישור לבעל האירוע
+    </button>
+    <p style="color:var(--text-muted); font-size:0.8rem; margin-top:8px; width:100%;">להדפסת ספר הברכות: גודל A4 (210x297 מ"מ), מתאים לשליחה ישירה לבית דפוס</p>
+    <p style="color:var(--text-muted); font-size:0.8rem; width:100%;">לא רוצים לחכות להורדה? שתפו את הקישור הזה עם בעל האירוע - הוא יוכל לפתוח אותו ולהוריד את הספר בעצמו, מהמכשיר שלו</p>
   </div>
 
   <!-- Progress -->
@@ -47,6 +51,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="/js/firebase-config.js"></script>

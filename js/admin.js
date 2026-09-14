@@ -889,7 +889,7 @@
         if (typeof Swal !== 'undefined') {
           Swal.fire({
             html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
-              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(255,193,7,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">⚠️</div>' +
+              '<div style="color:#ffc107; font-family:Assistant,sans-serif; font-weight:700; font-size:0.95rem; margin:0 auto 16px;">מצב אישור AI בלבד (ללא בדיקה ידנית)</div>' +
               '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב העלאה חופשית</h2>' +
               '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">שים לב! במצב זה הברכות יעלו למסך<br>באישור AI בלבד ללא בדיקה ידנית.<br><br><strong style="color:#ffc107;">מומלץ להשתמש במצב ביקורת אנושית</strong><br>כדי למנוע ברכות לא מתאימות</p></div>',
             background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
@@ -920,7 +920,7 @@
               : '<br><br><strong style="color:#e74c3c;">תקבל מייל על כל ברכה חדשה</strong><br>עם קישור לאישור או דחייה<br><span style="color:#ffc107;">⚠ עדיין לא הגדרת כתובת מייל - הגדר דרך כפתור "מייל להתראות"</span>';
             Swal.fire({
               html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
-                '<div style="width:56px; height:56px; border-radius:50%; background:rgba(231,76,60,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">🧑‍⚖️</div>' +
+                '<div style="display:inline-block; background:rgba(231,76,60,0.12); border:1px solid rgba(231,76,60,0.35); color:#ff8a7a; font-family:Assistant,sans-serif; font-weight:700; font-size:0.85rem; padding:7px 16px; border-radius:999px; margin:0 auto 18px;">🔔 מצב ביקורת אנושית עם התראת מייל על כל ברכה חדשה</div>' +
                 '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב ביקורת אנושית</h2>' +
                 '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">מעכשיו כל ברכה חדשה תמתין<br>לאישור ידני שלך לפני שהיא עולה למסך.' + emailLine + '</p></div>',
               background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
