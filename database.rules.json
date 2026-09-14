@@ -54,6 +54,10 @@
           ".read": true,
           ".write": true
         },
+        "screenImages": {
+          ".read": true,
+          ".write": false
+        },
         "screenControl": {
           ".read": true,
           ".write": true
