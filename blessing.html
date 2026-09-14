@@ -263,13 +263,9 @@
         if (!sessionStorage.getItem('welcome_shown_' + currentEventId)) {
           Swal.fire({
             html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
-              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(184,149,62,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.6rem; color:#d4b065;">✡</div>' +
-              '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.8rem; margin:0 0 4px;">ברוכים הבאים!</h2>' +
-              '<p style="color:#d4b065; font-size:1.3rem; margin:0 0 16px; font-weight:600;">האירוע של ' + celebrant + '</p>' +
-              '<div style="width:40px; height:1px; background:#d4b065; margin:0 auto 16px; opacity:0.4;"></div>' +
-              '<p style="color:#fff; font-size:1.25rem; font-weight:700; line-height:1.6; margin:0 0 18px;">שימו לב, מיד תעברו לעמוד יצירת הברכה...</p>' +
-              '<p style="color:#ff0000; font-size:1.25rem; font-weight:700; line-height:1.6; margin:0 0 8px; font-family:sans-serif;"><span class="welcome-question-pulse">האם גם אתם חוגגים אירוע בקרוב?</span></p>' +
-              '<p style="color:rgba(255,255,255,0.5); font-size:0.95rem; line-height:1.7; margin:0;">נשמח לעזור גם לכם ליצור ערב בלתי נשכח ✨</p></div>',
+              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(184,149,62,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 18px; font-size:1.6rem; color:#d4b065;">✡</div>' +
+              '<p style="color:#fff; font-size:1.2rem; font-weight:700; line-height:1.5; margin:0 0 16px;">רגע לפני שעוברים ליצירת ברכה</p>' +
+              '<p style="color:#ff0000; font-size:1.35rem; font-weight:700; line-height:1.5; margin:0; font-family:sans-serif;"><span class="welcome-question-pulse">האם אתם חוגגים אירוע בקרוב?</span></p></div>',
             background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
             border: '1px solid rgba(255,255,255,0.15)',
             color: '#fff',
