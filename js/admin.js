@@ -1,8 +1,20 @@
 // ===== ADMIN PANEL LOGIC (Multi-Tenant) =====
 (function() {
-  const ADMIN_PASSWORD = 'oren8773';
+  // The admin password is never stored client-side - login always goes through
+  // subAdminLogin, which checks it server-side and never exposes it back.
   const SCREEN_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
+  // Photos from a professional camera routinely arrive far above the server's 3MB
+  // limit, so every uploaded image is auto-resized/compressed client-side first,
+  // down to a size that still looks sharp on a big screen but is light for the DB.
+  const SCREEN_IMAGE_MAX_DIMENSION = 2200; // px on the longer side - plenty for a hall screen/TV
+  const SCREEN_IMAGE_TARGET_BYTES = SCREEN_IMAGE_MAX_BYTES - 250 * 1024; // safety margin under the server limit
   const SCREEN_IMAGES_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/screenImages';
+  const SUB_ADMIN_LOGIN_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/subAdminLogin';
+  const GET_LEADS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getLeads';
+  const GET_EVENTS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getEvents';
+  const GET_EVENT_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getEventPassword';
+  const SET_EVENT_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/setEventPassword';
+  const APPROVE_BLESSING_API = 'https://approvblessing-ayhgolerzq-uc.a.run.app';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -37,31 +49,28 @@
     showPanel();
   }
 
-  // Login - check main admin OR sub-admin password
+  // Login - main admin AND sub-admin passwords are both checked server-side.
+  // The password never lives in the client source, so viewing the page's
+  // source can no longer hand anyone admin access.
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
     var pwd = passwordInput.value.trim();
 
-    // Check main admin
-    if (pwd === ADMIN_PASSWORD) {
-      sessionStorage.setItem('admin_auth', 'true');
-      sessionStorage.setItem('admin_access_password', pwd);
-      isMainAdmin = true;
-      loginError.classList.remove('show');
-      showPanel();
-      return;
-    }
-
-    // Check sub-admin passwords from lightweight /passwords path
-    db.ref('passwords').once('value', function(snap) {
-      var data = snap.val();
-      if (!data) { loginError.classList.add('show'); passwordInput.value = ''; return; }
-      var foundId = null;
-      Object.keys(data).forEach(function(evId) {
-        if (String(data[evId]) === pwd) foundId = evId;
-      });
-      if (foundId) {
-        sessionStorage.setItem('sub_admin_event', foundId);
+    fetch(SUB_ADMIN_LOGIN_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; });
+    }).then(function(data) {
+      if (data && data.ok && data.isMainAdmin) {
+        sessionStorage.setItem('admin_auth', 'true');
+        sessionStorage.setItem('admin_access_password', pwd);
+        isMainAdmin = true;
+        loginError.classList.remove('show');
+        showPanel();
+      } else if (data && data.ok && data.eventId) {
+        sessionStorage.setItem('sub_admin_event', data.eventId);
         sessionStorage.setItem('admin_access_password', pwd);
         isMainAdmin = false;
         loginError.classList.remove('show');
@@ -71,6 +80,9 @@
         passwordInput.value = '';
         passwordInput.focus();
       }
+    }).catch(function() {
+      loginError.classList.add('show');
+      passwordInput.value = '';
     });
   });
 
@@ -128,11 +140,22 @@
   }
 
   function loadLeads() {
-    if (leadsUnsubscribe) {
-      leadsUnsubscribe();
-      leadsUnsubscribe = null;
-    }
-    leadsUnsubscribe = onLeadsChanged(function(leads) {
+    var loader = document.getElementById('leads-loader');
+    if (loader) loader.style.display = 'flex';
+    fetch(GET_LEADS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; });
+    }).then(function(data) {
+      renderLeads((data && data.ok && data.leads) || []);
+    }).catch(function() {
+      renderLeads([]);
+    });
+  }
+
+  function renderLeads(leads) {
       var loader = document.getElementById('leads-loader');
       if (loader) loader.style.display = 'none';
 
@@ -173,7 +196,6 @@
           '</td>' +
           '</tr>';
       }).join('');
-    });
   }
 
   var leadsBtn = document.getElementById('leads-btn');
@@ -199,7 +221,7 @@
       if (toggleBtn) {
         var leadId = toggleBtn.dataset.leadId;
         var isContacted = toggleBtn.dataset.contacted === 'true';
-        setLeadContacted(leadId, !isContacted);
+        setLeadContacted(leadId, !isContacted).then(loadLeads);
         return;
       }
 
@@ -207,7 +229,7 @@
       if (delBtn) {
         var delId = delBtn.dataset.leadId;
         showConfirm('מחיקת ליד', 'למחוק את הליד הזה לצמיתות?', function() {
-          deleteLead(delId);
+          deleteLead(delId).then(loadLeads);
         });
         return;
       }
@@ -215,7 +237,20 @@
   }
 
   function loadEvents() {
-    onEventsChanged(function(events) {
+    fetch(GET_EVENTS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; });
+    }).then(function(data) {
+      renderEvents((data && data.ok && data.events) || []);
+    }).catch(function() {
+      renderEvents([]);
+    });
+  }
+
+  function renderEvents(events) {
       const loader = document.getElementById('events-loader');
       if (loader) loader.style.display = 'none';
 
@@ -271,7 +306,6 @@
           '</td>' +
           '</tr>';
       }).join('');
-    });
   }
 
   // Event row click handlers
@@ -385,7 +419,7 @@
         if (result.isConfirmed) {
           // Save new password if changed
           if (newPwd !== accPwd) {
-            db.ref('events/' + accEventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + accEventId).set(newPwd);
+            getAdminCredential().then(function(password) { if (password) callSetEventPassword(accEventId, newPwd, password); });
           }
           // Send WhatsApp
           var phone = accPhone.replace(/[-\s]/g, '');
@@ -395,7 +429,7 @@
         } else if (result.isDenied) {
           // Save new password and go to login
           if (newPwd && newPwd !== accPwd) {
-            db.ref('events/' + accEventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + accEventId).set(newPwd);
+            getAdminCredential().then(function(password) { if (password) callSetEventPassword(accEventId, newPwd, password); });
             Swal.fire({
               text: 'הסיסמה עודכנה! מעביר למסך התחברות...',
               icon: 'success',
@@ -455,9 +489,19 @@
 
     // Change sub-admin password button
     document.getElementById('change-pwd-btn').onclick = function() {
-      db.ref('events/' + eventId + '/meta').once('value', function(snap) {
-        var meta = snap.val() || {};
-        var currentPwd = meta.subAdminPassword || '';
+      getAdminCredential().then(function(callerPassword) {
+        if (!callerPassword) return;
+        return Promise.all([
+          fetch(GET_EVENT_PASSWORD_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventId: eventId, password: callerPassword })
+          }).then(function(res) { return res.json().catch(function() { return {}; }); }),
+          getEventMeta(eventId)
+        ]).then(function(results) {
+        var pwdData = results[0];
+        var meta = results[1] || {};
+        var currentPwd = (pwdData && pwdData.ok) ? (pwdData.password || '') : '';
         var evName = meta.celebrantName || '';
         var evPhone = meta.organizerPhone || '';
 
@@ -496,7 +540,7 @@
           var newPwd = document.getElementById('swal-change-pwd') ? document.getElementById('swal-change-pwd').value.trim() : currentPwd;
           if (result.isConfirmed) {
             if (newPwd && newPwd !== currentPwd) {
-              db.ref('events/' + eventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + eventId).set(newPwd);
+              callSetEventPassword(eventId, newPwd, callerPassword);
             }
             var phone = evPhone.replace(/[-\s]/g, '');
             if (phone.startsWith('0')) phone = '972' + phone.slice(1);
@@ -504,7 +548,7 @@
             window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
           } else if (result.isDenied) {
             if (newPwd && newPwd !== currentPwd) {
-              db.ref('events/' + eventId + '/meta/subAdminPassword').set(newPwd); db.ref('passwords/' + eventId).set(newPwd);
+              callSetEventPassword(eventId, newPwd, callerPassword);
               Swal.fire({ text: 'הסיסמה עודכנה! מעביר למסך התחברות...', icon: 'success', timer: 2000, showConfirmButton: false, background: '#0c1425', color: '#fff' }).then(function() {
                 sessionStorage.removeItem('admin_auth');
                 sessionStorage.removeItem('sub_admin_event');
@@ -512,6 +556,7 @@
               });
             }
           }
+        });
         });
       });
     };
@@ -522,6 +567,41 @@
       showConfirm('המסכים רועננו', 'כל המסכים המחוברים יטענו מחדש', null);
     };
 
+    // Notification email button - where "new blessing pending review" emails get sent
+    document.getElementById('notify-email-btn').onclick = function() {
+      db.ref('events/' + eventId + '/meta/notifyEmail').once('value', function(snap) {
+        var currentEmail = snap.val() || '';
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;">' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 12px;">📧 מייל להתראות</h2>' +
+            '<p style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;">לכתובת הזו יישלח מייל בכל פעם שברכה חדשה ממתינה לאישור</p>' +
+            '<input type="email" id="swal-notify-email" dir="ltr" value="' + escapeHtml(currentEmail) + '" placeholder="name@example.com" style="width:240px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.05rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'שמור',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 380,
+          preConfirm: function() {
+            var val = document.getElementById('swal-notify-email').value.trim();
+            if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+              Swal.showValidationMessage('כתובת מייל לא תקינה');
+              return false;
+            }
+            return val;
+          }
+        }).then(function(result) {
+          if (result.isConfirmed) {
+            db.ref('events/' + eventId + '/meta/notifyEmail').set(result.value || '');
+            updateModeEmailHint(result.value || '');
+            showConfirm('נשמר', 'כתובת המייל עודכנה', null);
+          }
+        });
+      });
+    };
+
     document.getElementById('slider-settings-btn').onclick = function() {
       db.ref('events/' + eventId + '/screenControl/slideIntervalSeconds').once('value', function(snap) {
         var currentSeconds = Number(snap.val()) || 13;
@@ -529,7 +609,7 @@
 
         Swal.fire({
           html: '<div dir="rtl" style="text-align:center;">' +
-            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 12px;">הגדרת סליידר</h2>' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 12px;">הגדרת זמן סליידר</h2>' +
             '<p style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;">כמה שניות להציג כל שקופית?</p>' +
             '<input type="number" id="swal-slider-seconds" min="1" max="60" value="' + currentSeconds + '" style="width:120px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.4rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
             '<p style="color:rgba(255,255,255,0.38);font-size:0.78rem;margin:10px 0 0;">טווח מומלץ: 1-60 שניות</p>' +
@@ -624,12 +704,24 @@
     var switchThumb = document.getElementById('switch-thumb');
     var modeLabel = document.getElementById('mode-label');
     var modeDesc = document.getElementById('mode-desc');
+    var modeEmailHint = document.getElementById('mode-email-hint');
+
+    function updateModeEmailHint(email) {
+      if (!modeEmailHint) return;
+      modeEmailHint.textContent = email ? ('📧 נשלח אל: ' + email) : '📧 לא הוגדרה כתובת מייל - לחץ "מייל להתראות" להגדרה';
+      modeEmailHint.style.color = email ? 'var(--text-muted)' : '#e0a53e';
+    }
 
     // Load current mode
     db.ref('events/' + eventId + '/meta/autoMode').on('value', function(snap) {
       var isAuto = snap.val() === true;
       autoSwitch.checked = isAuto;
       updateSwitchUI(isAuto);
+    });
+
+    // Load current notification email
+    db.ref('events/' + eventId + '/meta/notifyEmail').on('value', function(snap) {
+      updateModeEmailHint(snap.val() || '');
     });
 
     function updateSwitchUI(isAuto) {
@@ -677,25 +769,31 @@
       } else {
         // Show explanation SweetAlert
         if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
-              '<div style="width:56px; height:56px; border-radius:50%; background:rgba(231,76,60,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">🧑‍⚖️</div>' +
-              '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב ביקורת אנושית</h2>' +
-              '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">מעכשיו כל ברכה חדשה תמתין<br>לאישור ידני שלך לפני שהיא עולה למסך.<br><br><strong style="color:#e74c3c;">תקבל מייל על כל ברכה חדשה</strong><br>עם קישור לאישור או דחייה</p></div>',
-            background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
-            border: '1px solid rgba(231,76,60,0.2)',
-            confirmButtonText: 'הבנתי, הפעל ביקורת אנושית',
-            confirmButtonColor: '#b8953e',
-            showCancelButton: true,
-            cancelButtonText: 'ביטול',
-            width: 400,
-          }).then(function(result) {
-            if (result.isConfirmed) {
-              db.ref('events/' + eventId + '/meta/autoMode').set(false);
-            } else {
-              autoSwitch.checked = true;
-              updateSwitchUI(true);
-            }
+          db.ref('events/' + eventId + '/meta/notifyEmail').once('value', function(emailSnap) {
+            var notifyEmail = emailSnap.val() || '';
+            var emailLine = notifyEmail
+              ? '<br><br><strong style="color:#e74c3c;">תקבל מייל על כל ברכה חדשה</strong><br>לכתובת ' + escapeHtml(notifyEmail) + ' עם קישור לאישור או דחייה'
+              : '<br><br><strong style="color:#e74c3c;">תקבל מייל על כל ברכה חדשה</strong><br>עם קישור לאישור או דחייה<br><span style="color:#ffc107;">⚠ עדיין לא הגדרת כתובת מייל - הגדר דרך כפתור "מייל להתראות"</span>';
+            Swal.fire({
+              html: '<div dir="rtl" style="text-align:center; padding:8px 0;">' +
+                '<div style="width:56px; height:56px; border-radius:50%; background:rgba(231,76,60,0.12); display:flex; align-items:center; justify-content:center; margin:0 auto 20px; font-size:1.8rem;">🧑‍⚖️</div>' +
+                '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.4rem; margin:0 0 12px;">מצב ביקורת אנושית</h2>' +
+                '<p style="color:rgba(255,255,255,0.6); font-size:0.95rem; line-height:1.8; margin:0;">מעכשיו כל ברכה חדשה תמתין<br>לאישור ידני שלך לפני שהיא עולה למסך.' + emailLine + '</p></div>',
+              background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+              border: '1px solid rgba(231,76,60,0.2)',
+              confirmButtonText: 'הבנתי, הפעל ביקורת אנושית',
+              confirmButtonColor: '#b8953e',
+              showCancelButton: true,
+              cancelButtonText: 'ביטול',
+              width: 400,
+            }).then(function(result) {
+              if (result.isConfirmed) {
+                db.ref('events/' + eventId + '/meta/autoMode').set(false);
+              } else {
+                autoSwitch.checked = true;
+                updateSwitchUI(true);
+              }
+            });
           });
         } else {
           db.ref('events/' + eventId + '/meta/autoMode').set(false);
@@ -867,7 +965,7 @@
       return '<div class="blessing-item ' + statusClass + '" data-id="' + b.id + '"' + (isChecking ? ' style="opacity:0.6; pointer-events:none;"' : '') + '>' +
         '<div class="blessing-item-row">' +
           (b.photoDataUrl && b.photoDataUrl.length > 10
-            ? '<img class="blessing-item-photo" src="' + b.photoDataUrl + '" alt="' + escapeHtml(name) + '">'
+            ? '<img class="blessing-item-photo" src="' + escapeHtml(b.photoDataUrl) + '" alt="' + escapeHtml(name) + '">'
             : '<div class="blessing-item-photo blessing-item-no-photo">אין תמונה</div>') +
           '<div class="blessing-item-info">' +
             '<span class="blessing-item-name">' + escapeHtml(name) + '</span>' +
@@ -963,7 +1061,13 @@
     var approveBtn = e.target.closest('.blessing-item-approve');
     if (approveBtn && currentEventId) {
       var id = approveBtn.dataset.id;
-      db.ref('events/' + currentEventId + '/blessings/' + id + '/status').set('approved');
+      var approveEventId = currentEventId;
+      getAdminCredential().then(function(password) {
+        if (!password) return;
+        return fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(password));
+      }).catch(function() {
+        showScreenImageError('אישור הברכה נכשל, נסו שוב');
+      });
       return;
     }
 
@@ -1031,6 +1135,14 @@
     });
   }
 
+  function callSetEventPassword(targetEventId, newPwd, password) {
+    return fetch(SET_EVENT_PASSWORD_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventId: targetEventId, password: password, newPassword: newPwd })
+    });
+  }
+
   function showScreenImageError(message) {
     return Swal.fire({
       icon: 'error',
@@ -1044,7 +1156,6 @@
   }
 
   function getAdminCredential() {
-    if (isMainAdmin) return Promise.resolve(ADMIN_PASSWORD);
     var saved = sessionStorage.getItem('admin_access_password');
     if (saved) return Promise.resolve(saved);
 
@@ -1098,6 +1209,80 @@
       reader.onload = function(e) { resolve(e.target.result); };
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  }
+
+  // Resizes/compresses an image file in the browser (canvas -> JPEG) so a heavy
+  // photographer photo still looks great on the screen but stays a reasonable
+  // size for the system. Animated GIFs are left untouched (canvas would flatten
+  // the animation) and just pass through fileToDataUrl.
+  function compressImageForScreen(file, opts) {
+    opts = opts || {};
+    var maxDimension = opts.maxDimension || SCREEN_IMAGE_MAX_DIMENSION;
+    var maxBytes = opts.maxBytes || SCREEN_IMAGE_TARGET_BYTES;
+
+    if (file.type === 'image/gif') {
+      return fileToDataUrl(file);
+    }
+
+    return new Promise(function(resolve, reject) {
+      var objectUrl = URL.createObjectURL(file);
+      var img = new Image();
+
+      img.onload = function() {
+        URL.revokeObjectURL(objectUrl);
+        var srcW = img.naturalWidth || img.width;
+        var srcH = img.naturalHeight || img.height;
+        if (!srcW || !srcH) { reject(new Error('image_read_failed')); return; }
+
+        function renderAt(dimension, quality) {
+          var scale = Math.min(1, dimension / Math.max(srcW, srcH));
+          var w = Math.max(1, Math.round(srcW * scale));
+          var h = Math.max(1, Math.round(srcH * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          // Flatten onto white in case the source has transparency (e.g. a PNG)
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          return new Promise(function(res) {
+            canvas.toBlob(function(blob) { res(blob); }, 'image/jpeg', quality);
+          });
+        }
+
+        (async function attempt() {
+          var dimension = maxDimension;
+          var quality = 0.85;
+          var blob = await renderAt(dimension, quality);
+          var tries = 0;
+          while (blob && blob.size > maxBytes && tries < 6) {
+            tries++;
+            if (quality > 0.5) {
+              quality -= 0.12;
+            } else {
+              dimension = Math.round(dimension * 0.82);
+            }
+            blob = await renderAt(dimension, quality);
+          }
+          if (!blob || blob.size > maxBytes) {
+            reject(Object.assign(new Error('image_too_large'), { code: 'image_too_large' }));
+            return;
+          }
+          var reader = new FileReader();
+          reader.onload = function(e) { resolve(e.target.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        })();
+      };
+
+      img.onerror = function() {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('image_load_failed'));
+      };
+
+      img.src = objectUrl;
     });
   }
 
@@ -1155,6 +1340,7 @@
         '</div>' +
         '<p id="screen-images-status" style="min-height:20px;color:#8ee09f;font-size:0.85rem;text-align:center;margin:0 0 10px;"></p>' +
         '<div id="screen-images-grid">' + renderScreenImages(images) + '</div>' +
+        '<button id="screen-images-done-btn" type="button" style="display:block;width:100%;margin-top:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;padding:13px 18px;font-family:Assistant,sans-serif;font-weight:700;font-size:1rem;cursor:pointer;">✓ סיימתי, סגור</button>' +
         '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>' +
         '</div>',
       background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
@@ -1168,26 +1354,29 @@
         var count = document.getElementById('screen-images-count');
         var status = document.getElementById('screen-images-status');
         var uploadLoader = document.getElementById('screen-images-upload-loader');
+        var doneBtn = document.getElementById('screen-images-done-btn');
 
-        function refresh(nextImages, message) {
+        if (doneBtn) {
+          doneBtn.addEventListener('click', function() { Swal.close(); });
+        }
+
+        function refresh(nextImages, message, highlightDone) {
           images = nextImages || images;
           count.textContent = images.length + ' תמונות';
           grid.innerHTML = renderScreenImages(images);
           status.textContent = message || '';
+          // After a successful upload, make the "done" button stand out so the
+          // user clearly sees the upload finished and knows what to do next.
+          if (doneBtn && highlightDone) {
+            doneBtn.style.background = 'var(--gold)';
+            doneBtn.style.borderColor = 'var(--gold)';
+            doneBtn.style.color = '#0c1425';
+          }
         }
 
         fileInput.addEventListener('change', async function() {
           var files = Array.prototype.slice.call(fileInput.files || []);
           if (!files.length) return;
-
-          var oversized = files.some(function(file) {
-            return file.size > SCREEN_IMAGE_MAX_BYTES;
-          });
-          if (oversized) {
-            fileInput.value = '';
-            await showImageTooLargeAlert();
-            return;
-          }
 
           var unsupported = files.some(function(file) {
             return !file.type || !file.type.startsWith('image/');
@@ -1202,11 +1391,21 @@
             fileInput.disabled = true;
             uploadLoader.style.display = 'block';
             var latestImages = images;
+            var skipped = [];
             for (var i = 0; i < files.length; i++) {
-              count.textContent = 'מעלה תמונה ' + (i + 1) + ' מתוך ' + files.length + '...';
+              count.textContent = 'מכווץ ומעלה תמונה ' + (i + 1) + ' מתוך ' + files.length + '...';
               status.textContent = '';
               var file = files[i];
-              var dataUrl = await fileToDataUrl(file);
+              var dataUrl;
+              try {
+                // Auto-resize/compress every image client-side so a heavy photo
+                // from a professional camera still looks sharp on screen but
+                // stays a reasonable size to upload and store.
+                dataUrl = await compressImageForScreen(file);
+              } catch (compressErr) {
+                skipped.push(file.name);
+                continue;
+              }
               var result = await callScreenImagesApi({
                 action: 'upload',
                 eventId: eventId,
@@ -1216,8 +1415,12 @@
               });
               latestImages = result.images || latestImages;
             }
-            refresh(latestImages, files.length === 1 ? 'התמונה הועלתה בהצלחה' : files.length + ' תמונות הועלו בהצלחה');
+            var uploadedCount = files.length - skipped.length;
+            refresh(latestImages, uploadedCount === 0 ? '' : (uploadedCount === 1 ? 'התמונה הועלתה בהצלחה' : uploadedCount + ' תמונות הועלו בהצלחה'), uploadedCount > 0);
             fileInput.value = '';
+            if (skipped.length) {
+              await showScreenImageError('התמונות הבאות לא הועלו כי הן גדולות מדי גם לאחר דחיסה: ' + skipped.join(', '));
+            }
           } catch (err) {
             fileInput.value = '';
             count.textContent = images.length + ' תמונות';

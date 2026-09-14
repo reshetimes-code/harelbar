@@ -151,6 +151,83 @@
       object-fit: contain;
     }
 
+    /* Big QR slide - shown every few slides so guests can scan & send a blessing */
+    .screen-qr-slide {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 50% 30%, rgba(26,58,110,0.55) 0%, rgba(10,26,58,0.72) 42%, rgba(0,0,0,0.96) 100%),
+        #000;
+    }
+
+    .qr-slide-inner {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 0 5vw;
+    }
+
+    .qr-slide-badge {
+      display: inline-block;
+      padding: 8px 32px;
+      border: 1px solid rgba(184,149,62,0.3);
+      border-radius: 100px;
+      font-family: 'Assistant', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--gold-light, #e8c88a);
+      margin-bottom: 24px;
+    }
+
+    .qr-slide-title {
+      font-family: 'Assistant', sans-serif;
+      font-weight: 800;
+      font-size: 3.4rem;
+      color: var(--gold-light, #e8c88a);
+      margin: 0 0 36px;
+      text-shadow: 0 2px 24px rgba(184,149,62,0.35);
+    }
+
+    .qr-slide-box {
+      background: #fff;
+      display: inline-block;
+      padding: 28px;
+      border-radius: 28px;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 120px rgba(184,149,62,0.15);
+      animation: qr-slide-pulse 2.4s ease-in-out infinite;
+    }
+
+    .qr-slide-img {
+      width: 44vh;
+      height: 44vh;
+      max-width: 520px;
+      max-height: 520px;
+      display: block;
+    }
+
+    .qr-slide-sub {
+      font-family: 'Assistant', sans-serif;
+      color: rgba(255,255,255,0.65);
+      font-size: 1.5rem;
+      margin-top: 32px;
+    }
+
+    @keyframes qr-slide-pulse {
+      0%, 100% { box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 120px rgba(184,149,62,0.15); }
+      50% { box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 170px rgba(184,149,62,0.32); }
+    }
+
+    @media (max-width: 768px) {
+      .qr-slide-title { font-size: 2rem; }
+      .qr-slide-img { width: 56vw; height: 56vw; }
+      .qr-slide-sub { font-size: 1.1rem; }
+    }
+
     .waiting-screen {
       width: 100vw;
       height: 100vh;
@@ -530,6 +607,9 @@
     let slideIntervalMs = 13000;
     const slideThemes = ['theme-sunrise', 'theme-lagoon', 'theme-orchid', 'theme-meadow', 'theme-royal', 'theme-rose'];
     let slideThemeIndex = 0;
+    // Default (always-on) behavior: after every 3 slide changes, a big QR slide is shown
+    const QR_SLIDE_EVERY = 3;
+    let slideChangeCount = 0;
 
     cardA = createSlot('card-a');
     cardB = createSlot('card-b');
@@ -551,7 +631,21 @@
       showSlideHtml('<div class="screen-image-slide"><img src="' + image.dataUrl + '" alt=""></div>');
     }
 
-    function showSlideHtml(html) {
+    function showQrSlide() {
+      var html =
+        '<div class="screen-qr-slide"><div class="qr-slide-inner">' +
+          '<span class="qr-slide-badge">מזל טוב</span>' +
+          '<h2 class="qr-slide-title">רוצים לשלוח ברכה?</h2>' +
+          '<div class="qr-slide-box"><img class="qr-slide-img" alt="QR"></div>' +
+          '<p class="qr-slide-sub">סרקו את הקוד עם המצלמה וכתבו ברכה</p>' +
+        '</div></div>';
+      showSlideHtml(html, function(card) {
+        var img = card.querySelector('.qr-slide-img');
+        if (img) loadQrWithFallback(img, 0);
+      });
+    }
+
+    function showSlideHtml(html, onInsert) {
       const next = activeCard === 'A' ? cardB : cardA;
       const current = activeCard === 'A' ? cardA : cardB;
       const theme = slideThemes[slideThemeIndex % slideThemes.length];
@@ -559,6 +653,7 @@
 
       next.className = 'screen-card ' + theme;
       next.innerHTML = html;
+      if (onInsert) onInsert(next);
 
       requestAnimationFrame(() => {
         current.classList.remove('active');
@@ -571,6 +666,15 @@
 
     function nextCard() {
       if (blessings.length === 0) return;
+
+      // Default behavior: every 3 slide changes, show a big QR slide
+      // so guests around the hall can scan it and send a blessing.
+      slideChangeCount++;
+      if (slideChangeCount >= QR_SLIDE_EVERY) {
+        slideChangeCount = 0;
+        showQrSlide();
+        return;
+      }
 
       if (screenImages.length > 0 && blessingsSinceImage >= 2) {
         showImageSlide(getNextScreenImage());
@@ -672,6 +776,7 @@
         slideshowStarted = false;
         currentIndex = -1;
         blessingsSinceImage = 0;
+        slideChangeCount = 0;
         knownIds = new Set();
         if (autoTimer) clearInterval(autoTimer);
         // Clear displayed cards

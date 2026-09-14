@@ -13,6 +13,45 @@ const SCREEN_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 const SCREEN_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
+// ===== RATE LIMITING (defense against password brute-forcing) =====
+// Tracks attempts per client IP per endpoint in a server-only DB path
+// (not reachable by clients - the Admin SDK always bypasses security rules).
+const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const RATE_LIMIT_MAX_ATTEMPTS = 15;
+
+// Each event's organizer can register their own notification email (set via
+// the admin panel). Falls back to the developer's ADMIN_EMAIL when the event
+// hasn't configured one, so existing events keep working unchanged.
+function resolveNotifyEmail(meta) {
+  const candidate = typeof meta.notifyEmail === "string" ? meta.notifyEmail.trim() : "";
+  if (candidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) return candidate;
+  return ADMIN_EMAIL;
+}
+
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
+  return req.ip || "unknown";
+}
+
+function sanitizeRateLimitKey(raw) {
+  return String(raw).replace(/[.#$[\]/]/g, "_").slice(0, 100);
+}
+
+async function checkRateLimit(name, req) {
+  const ip = sanitizeRateLimitKey(getClientIp(req));
+  const ref = admin.database().ref(`/rateLimits/${name}_${ip}`);
+  const now = Date.now();
+  const result = await ref.transaction((current) => {
+    if (!current || !current.windowStart || now - current.windowStart > RATE_LIMIT_WINDOW_MS) {
+      return { windowStart: now, count: 1 };
+    }
+    return { windowStart: current.windowStart, count: (current.count || 0) + 1 };
+  });
+  const data = result.committed && result.snapshot.exists() ? result.snapshot.val() : null;
+  return !data || data.count <= RATE_LIMIT_MAX_ATTEMPTS;
+}
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -44,14 +83,18 @@ REJECT the blessing if it contains ANY of the following:
 - Slang insults or derogatory Hebrew slang such as "סעממק" and similar offensive slang expressions
 - Anything that could embarrass someone at a family event
 ${photoDataUrl ? "- Images with sexual content, nudity, violence, or inappropriate content for a family event" : ""}
+${photoDataUrl ? "- Images that look digitally manipulated, composited, photoshopped, or AI-generated in a way that places a real person into a fabricated scene (mismatched lighting/shadows, odd edges around a person, unnatural blending, warped background, inconsistent proportions or texture)" : ""}
+${photoDataUrl ? "- Images implying a romantic/sexual relationship, infidelity, or any embarrassing or defamatory scenario involving identifiable people, even without nudity" : ""}
+${photoDataUrl ? "- Photos of screens, other photos, or printed pictures (a photo of a photo), which are an easy way to sneak in unrelated or fabricated imagery" : ""}
 
 APPROVE the blessing if it is:
 - Warm wishes, congratulations, blessings
 - Words of encouragement or love
 - Short or simple text that is not offensive
-${photoDataUrl ? "- A normal appropriate photo for a family event" : ""}
+${photoDataUrl ? "- A normal, clearly authentic, appropriate photo for a family event (selfie, group photo, event photo)" : ""}
 
-Default: APPROVE (only reject if clearly inappropriate)
+Default for TEXT: APPROVE (only reject if clearly inappropriate).
+${photoDataUrl ? "Default for IMAGES: be more cautious than with text. If you have real doubt about whether a photo is genuine/appropriate rather than manipulated or out of place, REJECT it and explain the doubt as the reason - a human will make the final call anyway." : ""}
 
 החזר תשובה בפורמט הבא בלבד (שורה אחת):
 APPROVED - אם הברכה תקינה
@@ -118,10 +161,10 @@ exports.onNewBlessing = onValueCreated(
       console.log("Auto-rejected blessing:", eventId, blessingId, check.reason);
 
       // Still notify admin with approve button
-      const approveAnywayUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve`;
+      const approveAnywayUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
       const mailOptions = {
         from: `"מערכת ברכות" <orenshp77@gmail.com>`,
-        to: ADMIN_EMAIL,
+        to: resolveNotifyEmail(meta),
         subject: `⚠️ ברכה נדחתה - ${celebrantName} - ${blessing.name}`,
         html: `
           <div dir="rtl" style="font-family:Arial,sans-serif; max-width:500px; margin:0 auto; background:#2a0a0a; color:#fff; border-radius:12px; overflow:hidden;">
@@ -144,21 +187,25 @@ exports.onNewBlessing = onValueCreated(
       return;
     }
 
-    // Content is OK - check if auto mode
-    const isAutoMode = meta.autoMode === true;
+    // Content is OK - check if auto mode.
+    // Photos ALWAYS require manual human review, even in auto mode - an AI check
+    // can't be trusted alone to catch manipulated/fabricated photos, so every photo
+    // still waits for a person to look at it before it can reach the screen.
+    const hasPhoto = typeof blessing.photoDataUrl === "string" && blessing.photoDataUrl.length > 0;
+    const isAutoMode = meta.autoMode === true && !hasPhoto;
 
     if (isAutoMode) {
-      // Auto mode: approve directly, no email
+      // Auto mode: approve directly, no email (text-only blessings only)
       await admin.database().ref(`/events/${eventId}/blessings/${blessingId}/status`).set("approved");
       console.log("Auto-approved blessing (auto mode):", eventId, blessingId);
       return;
     }
 
-    // Manual mode: set pending and send approval email
+    // Manual mode (or a photo was attached): set pending and send approval email
     await admin.database().ref(`/events/${eventId}/blessings/${blessingId}/status`).set("pending");
 
-    const approveUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve`;
-    const rejectUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=reject`;
+    const approveUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
+    const rejectUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=reject&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
 
     const attachments = [];
     let imgTag = "";
@@ -177,7 +224,7 @@ exports.onNewBlessing = onValueCreated(
 
     const mailOptions = {
       from: `"מערכת ברכות" <orenshp77@gmail.com>`,
-      to: ADMIN_EMAIL,
+      to: resolveNotifyEmail(meta),
       subject: `ברכה חדשה - ${celebrantName} - מ${blessing.name}`,
       attachments,
       html: `
@@ -221,6 +268,11 @@ exports.screenImages = onRequest(
 
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("screenImages", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
       return;
     }
 
@@ -284,14 +336,26 @@ exports.screenImages = onRequest(
 exports.approvBlessing = onRequest(
   { region: "us-central1" },
   async (req, res) => {
-    const { event: eventId, id, action } = req.query;
+    setCorsHeaders(res);
+    const { event: eventId, id, action, password } = req.query;
 
     if (!eventId || !id || !["approve", "reject"].includes(action)) {
       res.status(400).send("Invalid request");
       return;
     }
 
+    if (!(await checkRateLimit("approvBlessing", req))) {
+      res.status(429).send(htmlResponse("יותר מדי ניסיונות", "נסו שוב בעוד כמה דקות", "#e55"));
+      return;
+    }
+
     try {
+      const authorized = await isAuthorizedForEvent(eventId, password);
+      if (!authorized) {
+        res.status(403).send(htmlResponse("אין הרשאה", "הקישור לא תקין או שהסיסמה שגויה", "#e55"));
+        return;
+      }
+
       const ref = admin.database().ref(`/events/${eventId}/blessings/${id}`);
       const snapshot = await ref.once("value");
 
@@ -314,6 +378,221 @@ exports.approvBlessing = onRequest(
   }
 );
 
+// Sub-admin login: takes a password, returns the matching eventId without
+// ever exposing the full password list to the client.
+exports.subAdminLogin = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("login", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password } = req.body || {};
+    if (!password || typeof password !== "string") {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    // Main admin - checked first, never touches the sub-admin password list.
+    if (password === ADMIN_PASSWORD) {
+      res.json({ ok: true, isMainAdmin: true });
+      return;
+    }
+
+    try {
+      const snap = await admin.database().ref("/passwords").once("value");
+      const data = snap.val() || {};
+      const eventId = Object.keys(data).find((id) => String(data[id]) === password);
+      if (!eventId) {
+        res.status(401).json({ ok: false, error: "invalid_password" });
+        return;
+      }
+      res.json({ ok: true, eventId, isMainAdmin: false });
+    } catch (error) {
+      console.error("subAdminLogin error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: read the leads list without exposing it to public DB reads.
+exports.getLeads = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getLeads", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+
+    try {
+      const snap = await admin.database().ref("/leads").once("value");
+      const data = snap.val() || {};
+      const leads = Object.keys(data).map((id) => Object.assign({ id }, data[id]));
+      res.json({ ok: true, leads });
+    } catch (error) {
+      console.error("getLeads error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: list all events (with each event's current sub-admin
+// password merged in) without exposing the full events tree to public DB reads.
+exports.getEvents = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getEvents", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+
+    try {
+      const [eventsSnap, passwordsSnap] = await Promise.all([
+        admin.database().ref("/events").once("value"),
+        admin.database().ref("/passwords").once("value"),
+      ]);
+      const eventsData = eventsSnap.val() || {};
+      const passwordsData = passwordsSnap.val() || {};
+      const events = Object.keys(eventsData).map((id) => {
+        const meta = Object.assign({}, eventsData[id].meta || {});
+        meta.subAdminPassword = passwordsData[id] || "";
+        return {
+          id,
+          meta,
+          blessingCount: eventsData[id].blessings ? Object.keys(eventsData[id].blessings).length : 0,
+        };
+      });
+      res.json({ ok: true, events });
+    } catch (error) {
+      console.error("getEvents error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Read/change a specific event's sub-admin password (main admin, or that
+// event's own current password, may call this).
+exports.getEventPassword = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getEventPassword", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { eventId, password } = req.body || {};
+    if (!eventId || typeof eventId !== "string") {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const authorized = await isAuthorizedForEvent(eventId, password);
+      if (!authorized) {
+        res.status(403).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+      const snap = await admin.database().ref(`/passwords/${eventId}`).once("value");
+      res.json({ ok: true, password: String(snap.val() || "") });
+    } catch (error) {
+      console.error("getEventPassword error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+exports.setEventPassword = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("setEventPassword", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { eventId, password, newPassword } = req.body || {};
+    if (!eventId || typeof eventId !== "string" || typeof newPassword !== "string" || newPassword.length < 1 || newPassword.length > 20) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const authorized = await isAuthorizedForEvent(eventId, password);
+      if (!authorized) {
+        res.status(403).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+      await admin.database().ref(`/passwords/${eventId}`).set(newPassword);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("setEventPassword error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
 function setCorsHeaders(res) {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -325,10 +604,7 @@ async function isAuthorizedForEvent(eventId, password) {
   if (password === ADMIN_PASSWORD) return true;
 
   const pwdSnap = await admin.database().ref(`/passwords/${eventId}`).once("value");
-  if (String(pwdSnap.val() || "") === password) return true;
-
-  const metaSnap = await admin.database().ref(`/events/${eventId}/meta/subAdminPassword`).once("value");
-  return String(metaSnap.val() || "") === password;
+  return String(pwdSnap.val() || "") === password;
 }
 
 function parseScreenImageDataUrl(dataUrl) {

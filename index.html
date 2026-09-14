@@ -202,12 +202,13 @@
       document.getElementById('qr-view').style.display = 'block';
       document.getElementById('qr-img').src = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=' + encodeURIComponent('https://hchc.co.il');
 
-      // Listen for NEW events created after page load
+      // Listen for NEW events created after page load (uses the lightweight
+      // public eventIndex, which holds no personal data - not the full events tree)
       var existingEvents = {};
-      db.ref('events').once('value', function(snap) {
+      db.ref('eventIndex').once('value', function(snap) {
         var data = snap.val();
         if (data) Object.keys(data).forEach(function(k) { existingEvents[k] = true; });
-        db.ref('events').on('child_added', function(childSnap) {
+        db.ref('eventIndex').on('child_added', function(childSnap) {
           if (!existingEvents[childSnap.key]) {
             window.location.href = 'screen.html?event=' + childSnap.key;
           }
@@ -253,19 +254,26 @@
         var pwd = prompt('הכניסו סיסמה:');
         if (!pwd) return;
         pwd = pwd.trim();
-        db.ref('passwords').once('value', function(snap) {
-          var data = snap.val();
-          if (!data) { alert('סיסמה שגויה'); return; }
-          var foundId = null;
-          Object.keys(data).forEach(function(evId) {
-            if (String(data[evId]) === pwd) foundId = evId;
-          });
-          if (foundId) {
-            sessionStorage.setItem('sub_admin_event', foundId);
-            window.location.href = 'admin.html?event=' + foundId;
+        fetch('https://us-central1-harelbar-ca7dd.cloudfunctions.net/subAdminLogin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        }).then(function(res) {
+          return res.json().catch(function() { return {}; });
+        }).then(function(data) {
+          if (data && data.ok && data.isMainAdmin) {
+            sessionStorage.setItem('admin_auth', 'true');
+            sessionStorage.setItem('admin_access_password', pwd);
+            window.location.href = 'admin.html';
+          } else if (data && data.ok && data.eventId) {
+            sessionStorage.setItem('sub_admin_event', data.eventId);
+            sessionStorage.setItem('admin_access_password', pwd);
+            window.location.href = 'admin.html?event=' + data.eventId;
           } else {
             alert('סיסמה שגויה');
           }
+        }).catch(function() {
+          alert('שגיאה, נסו שוב');
         });
       });
     }
@@ -288,7 +296,7 @@
     var screenBtn = document.getElementById('screen-btn');
     if (screenBtn) screenBtn.addEventListener('click', function() {
       showPasswordDialog('כניסה למסך', function() {
-        db.ref('events').limitToLast(1).once('value', function(snapshot) {
+        db.ref('eventIndex').limitToLast(1).once('value', function(snapshot) {
           if (snapshot.val()) {
             var eventId = Object.keys(snapshot.val())[0];
             window.location.href = 'screen.html?event=' + eventId;
@@ -303,7 +311,7 @@
                 '</div>' +
                 '<p style="margin-top:20px; font-size:1.8rem; font-weight:700; color:var(--gold-light);">hchc.co.il</p>' +
               '</div>';
-            db.ref('events').on('child_added', function(childSnap) {
+            db.ref('eventIndex').on('child_added', function(childSnap) {
               window.location.href = 'screen.html?event=' + childSnap.key;
             });
           }

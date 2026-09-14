@@ -43,7 +43,7 @@ function getCardSizeClass(textLength) {
 function renderCard(blessing) {
   const name = escapeHtml(blessing.name || '');
   const text = escapeHtml(blessing.text || '');
-  const photo = blessing.photoDataUrl;
+  const photo = escapeHtml(blessing.photoDataUrl || '');
   const sizeClass = getCardSizeClass((blessing.text || '').length);
 
   const hasPhoto = photo && photo.length > 10;

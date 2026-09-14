@@ -27,10 +27,14 @@ function createEvent(meta) {
   let eventId = generateEventId();
   meta.createdAt = new Date().toISOString();
   meta.status = 'active';
-  meta.subAdminPassword = generateEventPassword();
+  var subAdminPassword = generateEventPassword();
   return db.ref('events/' + eventId + '/meta').set(meta).then(function() {
-    // Also save password in separate lightweight path
-    db.ref('passwords/' + eventId).set(meta.subAdminPassword);
+    // Password lives only in the lightweight /passwords path (not readable
+    // by clients, and never duplicated into the publicly-readable meta object)
+    db.ref('passwords/' + eventId).set(subAdminPassword);
+    // Lightweight public index (no PII) so the kiosk screen (index.html) can
+    // detect a brand-new event without ever reading the full events tree.
+    db.ref('eventIndex/' + eventId).set({ createdAt: meta.createdAt });
     return eventId;
   });
 }
