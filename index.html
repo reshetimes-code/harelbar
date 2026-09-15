@@ -154,7 +154,7 @@
   <div class="top-buttons">
     <button class="top-btn" id="fullscreen-btn">⛶ מסך מלא</button>
     <button class="top-btn" id="screen-btn">🖥 מסך</button>
-    <a href="admin.html" class="top-btn" style="text-decoration:none;">⚙ פנל</a>
+    <a href="admin.html" class="top-btn" style="text-decoration:none;">⚙ פנל ניהול</a>
   </div>
 
   <div class="page-bg">
@@ -168,6 +168,15 @@
       </div>
       <p class="qr-url">hchc.co.il</p>
       <p class="qr-hint">או הכניסו את הכתובת בדפדפן הטלפון</p>
+
+      <div class="mobile-divider" style="margin-top:32px;"></div>
+      <p style="color:var(--text-muted); font-size:0.95rem; margin-bottom:16px;">או המשיכו כאן במחשב:</p>
+      <a href="register.html" class="btn btn-primary mobile-btn new-event-btn" style="max-width:320px; margin:0 auto; display:block;">
+        ✍️ פתח אירוע חדש
+      </a>
+      <button class="existing-account-btn" style="display:block; max-width:320px; width:100%; margin:16px auto 0; padding:14px; background:rgba(184,149,62,0.15); border:1.5px solid var(--gold); border-radius:var(--radius-sm); color:var(--gold-light); font-family:Assistant,sans-serif; font-size:1.05rem; font-weight:700; cursor:pointer; transition:all 0.2s;">
+        🔑 יש לי כבר חשבון
+      </button>
     </div>
 
     <!-- ===== MOBILE VIEW ===== -->
@@ -177,11 +186,11 @@
       <p class="mobile-subtitle">לחצו כדי להתחבר לאירוע</p>
       <div class="mobile-divider"></div>
 
-      <a href="register.html" class="btn btn-primary mobile-btn">
+      <a href="register.html" class="btn btn-primary mobile-btn new-event-btn">
         ✍️ פתח אירוע חדש
       </a>
 
-      <button id="existing-account-btn" style="display:block; width:100%; margin-top:16px; padding:14px; background:rgba(184,149,62,0.15); border:1.5px solid var(--gold); border-radius:var(--radius-sm); color:var(--gold-light); font-family:Assistant,sans-serif; font-size:1.05rem; font-weight:700; cursor:pointer; transition:all 0.2s;">
+      <button class="existing-account-btn" style="display:block; width:100%; margin-top:16px; padding:14px; background:rgba(184,149,62,0.15); border:1.5px solid var(--gold); border-radius:var(--radius-sm); color:var(--gold-light); font-family:Assistant,sans-serif; font-size:1.05rem; font-weight:700; cursor:pointer; transition:all 0.2s;">
         🔑 יש לי כבר חשבון
       </button>
     </div>
@@ -247,34 +256,163 @@
       });
     }
 
-    // Existing account button
-    var existBtn = document.getElementById('existing-account-btn');
-    if (existBtn) {
+    // Existing account button(s) - present in both the mobile view and the
+    // desktop QR view, so anyone can log in regardless of device. Covers all
+    // three roles (main admin / single-event sub-admin / event manager) -
+    // the optional username field is only used for the event-manager login.
+    document.querySelectorAll('.existing-account-btn').forEach(function(existBtn) {
       existBtn.addEventListener('click', function() {
-        var pwd = prompt('הכניסו סיסמה:');
-        if (!pwd) return;
-        pwd = pwd.trim();
-        fetch('https://us-central1-harelbar-ca7dd.cloudfunctions.net/subAdminLogin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd })
-        }).then(function(res) {
-          return res.json().catch(function() { return {}; });
-        }).then(function(data) {
-          if (data && data.ok && data.isMainAdmin) {
-            sessionStorage.setItem('admin_auth', 'true');
-            sessionStorage.setItem('admin_access_password', pwd);
-            window.location.href = 'admin.html';
-          } else if (data && data.ok && data.eventId) {
-            sessionStorage.setItem('sub_admin_event', data.eventId);
-            sessionStorage.setItem('admin_access_password', pwd);
-            window.location.href = 'admin.html?event=' + data.eventId;
-          } else {
-            alert('סיסמה שגויה');
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;">' +
+            '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.3rem; margin:0 0 16px;">כניסה לחשבון</h2>' +
+            '<input type="text" id="swal-login-username" placeholder="אימייל (למנהלי אירועים בלבד)" dir="ltr" style="width:100%; padding:12px; margin-bottom:10px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1rem; background:rgba(255,255,255,0.08); color:#fff; text-align:center;">' +
+            '<input type="password" id="swal-login-password" placeholder="סיסמה" style="width:100%; padding:12px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1.1rem; background:rgba(255,255,255,0.08); color:#fff; text-align:center;">' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'כניסה',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 380,
+          showLoaderOnConfirm: true,
+          didOpen: function() {
+            document.getElementById('swal-login-password').focus();
+          },
+          preConfirm: function() {
+            var uname = document.getElementById('swal-login-username').value.trim();
+            var pwd = document.getElementById('swal-login-password').value.trim();
+            if (!pwd) {
+              Swal.showValidationMessage('נא להזין סיסמה');
+              return false;
+            }
+            var body = { password: pwd };
+            if (uname) body.username = uname;
+            return fetch('https://us-central1-harelbar-ca7dd.cloudfunctions.net/subAdminLogin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            }).then(function(res) {
+              return res.json().catch(function() { return {}; });
+            }).then(function(data) {
+              if (!data || !data.ok) {
+                Swal.showValidationMessage('פרטי התחברות שגויים');
+                return false;
+              }
+              data.password = pwd;
+              return data;
+            }).catch(function() {
+              Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
+              return false;
+            });
           }
-        }).catch(function() {
-          alert('שגיאה, נסו שוב');
+        }).then(function(result) {
+          if (!result.isConfirmed || !result.value) return;
+          var data = result.value;
+          if (data.role === 'manager') {
+            sessionStorage.setItem('manager_auth', 'true');
+            sessionStorage.setItem('manager_id', data.managerId);
+            sessionStorage.setItem('manager_name', data.name || '');
+            sessionStorage.setItem('admin_access_password', data.password);
+            window.location.href = 'admin.html';
+          } else if (data.isMainAdmin) {
+            sessionStorage.setItem('admin_auth', 'true');
+            sessionStorage.setItem('admin_access_password', data.password);
+            window.location.href = 'admin.html';
+          } else if (data.eventId) {
+            sessionStorage.setItem('sub_admin_event', data.eventId);
+            sessionStorage.setItem('admin_access_password', data.password);
+            window.location.href = 'admin.html?event=' + data.eventId;
+          }
         });
+      });
+    });
+
+    // "פתח אירוע חדש" - offers a one-off private event (today's register.html
+    // flow) or signing up as an event manager (an account that can hold
+    // several events, all visible to the super admin under "מנהלי אירועים").
+    document.querySelectorAll('.new-event-btn').forEach(function(newEventBtn) {
+      newEventBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;">' +
+            '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.25rem; margin:0 0 6px;">איזה סוג אירוע?</h2>' +
+            '<p style="color:rgba(255,255,255,0.5); font-size:0.88rem; margin:0 0 22px;">בחרו את האפשרות המתאימה לכם</p>' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          showDenyButton: true,
+          confirmButtonText: '🗓️ אירוע פרטי (חד פעמי)',
+          confirmButtonColor: '#b8953e',
+          denyButtonText: '🧑‍💼 אני מנהל/ת אירועים',
+          denyButtonColor: '#25D366',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 420
+        }).then(function(result) {
+          if (result.isConfirmed) {
+            window.location.href = 'register.html';
+          } else if (result.isDenied) {
+            openManagerSignup();
+          }
+        });
+      });
+    });
+
+    function openManagerSignup() {
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:right;">' +
+          '<h2 style="color:#fff; font-family:Assistant,sans-serif; font-weight:800; font-size:1.2rem; margin:0 0 16px; text-align:center;">הרשמה כמנהל/ת אירועים</h2>' +
+          '<label style="color:var(--text-muted); font-size:0.85rem;">שם מלא</label>' +
+          '<input type="text" id="swal-signup-name" style="width:100%; padding:12px; margin:4px 0 12px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1rem; background:rgba(255,255,255,0.08); color:#fff;">' +
+          '<label style="color:var(--text-muted); font-size:0.85rem;">אימייל</label>' +
+          '<input type="email" id="swal-signup-email" dir="ltr" style="width:100%; padding:12px; margin:4px 0 12px; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1rem; background:rgba(255,255,255,0.08); color:#fff;">' +
+          '<label style="color:var(--text-muted); font-size:0.85rem;">סיסמה</label>' +
+          '<input type="password" id="swal-signup-password" dir="ltr" style="width:100%; padding:12px; margin:4px 0; border:1.5px solid rgba(255,255,255,0.15); border-radius:8px; font-family:Assistant,sans-serif; font-size:1rem; background:rgba(255,255,255,0.08); color:#fff;">' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        confirmButtonText: 'הרשמה',
+        confirmButtonColor: '#b8953e',
+        showCancelButton: true,
+        cancelButtonText: 'ביטול',
+        width: 380,
+        showLoaderOnConfirm: true,
+        preConfirm: function() {
+          var name = document.getElementById('swal-signup-name').value.trim();
+          var email = document.getElementById('swal-signup-email').value.trim();
+          var password = document.getElementById('swal-signup-password').value.trim();
+          if (!email || !password) {
+            Swal.showValidationMessage('נא למלא אימייל וסיסמה');
+            return false;
+          }
+          return fetch('https://us-central1-harelbar-ca7dd.cloudfunctions.net/signupEventManager', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, name: name, password: password })
+          }).then(function(res) {
+            return res.json().catch(function() { return {}; });
+          }).then(function(data) {
+            if (!data || !data.ok) {
+              var msg = data && data.error === 'email_taken' ? 'האימייל הזה כבר רשום במערכת - נסו "יש לי כבר חשבון"' : 'שגיאה בהרשמה, נסו שוב';
+              Swal.showValidationMessage(msg);
+              return false;
+            }
+            data.password = password;
+            return data;
+          }).catch(function() {
+            Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
+            return false;
+          });
+        }
+      }).then(function(result) {
+        if (!result.isConfirmed || !result.value) return;
+        var data = result.value;
+        sessionStorage.setItem('manager_auth', 'true');
+        sessionStorage.setItem('manager_id', data.managerId);
+        sessionStorage.setItem('manager_name', data.name || '');
+        sessionStorage.setItem('admin_access_password', data.password);
+        window.location.href = 'admin.html';
       });
     }
 

@@ -1,6 +1,6 @@
 // ===== FIREBASE CONFIGURATION =====
 const firebaseConfig = {
-  apiKey: "AIzaSyCJ6uIQAnhekmu_-8Zfuzjuj2_jbwax2qQ",
+  apiKey: "AIzaSyCJ0uIQAnhekmu_-8Zfuzjuj2_jbwax2qQ",
   authDomain: "harelbar-ca7dd.firebaseapp.com",
   databaseURL: "https://harelbar-ca7dd-default-rtdb.firebaseio.com",
   projectId: "harelbar-ca7dd",

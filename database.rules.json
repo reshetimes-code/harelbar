@@ -4,6 +4,10 @@
       ".read": false,
       ".write": false
     },
+    "managers": {
+      ".read": false,
+      ".write": false
+    },
     "passwords": {
       ".read": false,
       "$eventId": {
@@ -36,7 +40,8 @@
           "organizerPhone": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 20" },
           "celebrantName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
           "eventDate": { ".validate": "newData.isString()" },
-          "notifyEmail": { ".validate": "newData.isString() && newData.val().length < 200" }
+          "notifyEmail": { ".validate": "newData.isString() && newData.val().length < 200" },
+          "ownerId": { ".validate": "newData.isString() && newData.val().length < 60 && (!data.exists() || newData.val() === data.val())" }
         },
         "blessings": {
           ".read": true,

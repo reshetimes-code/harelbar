@@ -8,10 +8,11 @@ const { defineSecret } = require("firebase-functions/params");
 admin.initializeApp();
 
 const ADMIN_EMAIL = "orenshp77@gmail.com";
-const ADMIN_PASSWORD = "oren8773";
 const SCREEN_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 const SCREEN_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+const adminPassword = defineSecret("ADMIN_PASSWORD");
+const gmailAppPassword = defineSecret("GMAIL_APP_PASSWORD");
 
 // ===== RATE LIMITING (defense against password brute-forcing) =====
 // Tracks attempts per client IP per endpoint in a server-only DB path
@@ -52,13 +53,15 @@ async function checkRateLimit(name, req) {
   return !data || data.count <= RATE_LIMIT_MAX_ATTEMPTS;
 }
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "orenshp77@gmail.com",
-    pass: "nktjnctgplbjchge",
-  },
-});
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: "orenshp77@gmail.com",
+      pass: gmailAppPassword.value(),
+    },
+  });
+}
 
 // Check blessing content with Gemini AI (text + image)
 async function checkBlessingContent(name, text, photoDataUrl) {
@@ -140,7 +143,7 @@ REJECTED - אם הברכה פוגענית (ואז הוסף סיבה קצרה)`;
 
 // Trigger when new blessing is created (multi-tenant path)
 exports.onNewBlessing = onValueCreated(
-  { ref: "/events/{eventId}/blessings/{blessingId}", region: "us-central1", secrets: [geminiApiKey] },
+  { ref: "/events/{eventId}/blessings/{blessingId}", region: "us-central1", secrets: [geminiApiKey, adminPassword, gmailAppPassword] },
   async (event) => {
     const blessing = event.data.val();
     const blessingId = event.params.blessingId;
@@ -161,7 +164,7 @@ exports.onNewBlessing = onValueCreated(
       console.log("Auto-rejected blessing:", eventId, blessingId, check.reason);
 
       // Still notify admin with approve button
-      const approveAnywayUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
+      const approveAnywayUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(adminPassword.value())}`;
       const mailOptions = {
         from: `"מערכת ברכות" <orenshp77@gmail.com>`,
         to: resolveNotifyEmail(meta),
@@ -183,7 +186,7 @@ exports.onNewBlessing = onValueCreated(
           </div>
         `,
       };
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
       return;
     }
 
@@ -204,8 +207,8 @@ exports.onNewBlessing = onValueCreated(
     // Manual mode (or a photo was attached): set pending and send approval email
     await admin.database().ref(`/events/${eventId}/blessings/${blessingId}/status`).set("pending");
 
-    const approveUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
-    const rejectUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=reject&password=${encodeURIComponent(ADMIN_PASSWORD)}`;
+    const approveUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(adminPassword.value())}`;
+    const rejectUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=reject&password=${encodeURIComponent(adminPassword.value())}`;
 
     const attachments = [];
     let imgTag = "";
@@ -247,7 +250,7 @@ exports.onNewBlessing = onValueCreated(
     };
 
     try {
-      await transporter.sendMail(mailOptions);
+      await getTransporter().sendMail(mailOptions);
       console.log("Email sent for blessing:", eventId, blessingId);
     } catch (error) {
       console.error("Error sending email:", error);
@@ -257,7 +260,7 @@ exports.onNewBlessing = onValueCreated(
 
 // Manage per-event screen images.
 exports.screenImages = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
 
@@ -334,7 +337,7 @@ exports.screenImages = onRequest(
 
 // HTTP endpoint to approve/reject blessings (multi-tenant)
 exports.approvBlessing = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     const { event: eventId, id, action, password } = req.query;
@@ -384,7 +387,7 @@ exports.approvBlessing = onRequest(
 // direct client write from ever setting `status` (that's what keeps a guest
 // from self-approving a new blessing), so a restore has to go through here.
 exports.manageTrash = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     const { event: eventId, id, action, password } = req.query;
@@ -430,7 +433,7 @@ exports.manageTrash = onRequest(
 // Sub-admin login: takes a password, returns the matching eventId without
 // ever exposing the full password list to the client.
 exports.subAdminLogin = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -447,14 +450,34 @@ exports.subAdminLogin = onRequest(
       return;
     }
 
-    const { password } = req.body || {};
+    const { password, username } = req.body || {};
     if (!password || typeof password !== "string") {
       res.status(400).json({ ok: false, error: "invalid_request" });
       return;
     }
 
+    // Event manager - identified by username, scoped to only the events they own.
+    if (username && typeof username === "string") {
+      try {
+        const managersSnap = await admin.database().ref("/managers").once("value");
+        const managers = managersSnap.val() || {};
+        const managerId = Object.keys(managers).find(
+          (id) => managers[id].username === username && String(managers[id].password) === password
+        );
+        if (!managerId) {
+          res.status(401).json({ ok: false, error: "invalid_password" });
+          return;
+        }
+        res.json({ ok: true, role: "manager", managerId, name: managers[managerId].name || managers[managerId].username });
+      } catch (error) {
+        console.error("subAdminLogin (manager) error:", error);
+        res.status(500).json({ ok: false, error: "server_error" });
+      }
+      return;
+    }
+
     // Main admin - checked first, never touches the sub-admin password list.
-    if (password === ADMIN_PASSWORD) {
+    if (password === adminPassword.value()) {
       res.json({ ok: true, isMainAdmin: true });
       return;
     }
@@ -477,7 +500,7 @@ exports.subAdminLogin = onRequest(
 
 // Main-admin-only: read the leads list without exposing it to public DB reads.
 exports.getLeads = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -495,7 +518,7 @@ exports.getLeads = onRequest(
     }
 
     const { password } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
+    if (password !== adminPassword.value()) {
       res.status(403).json({ ok: false, error: "unauthorized" });
       return;
     }
@@ -515,7 +538,7 @@ exports.getLeads = onRequest(
 // Main-admin-only: list all events (with each event's current sub-admin
 // password merged in) without exposing the full events tree to public DB reads.
 exports.getEvents = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -533,7 +556,7 @@ exports.getEvents = onRequest(
     }
 
     const { password } = req.body || {};
-    if (password !== ADMIN_PASSWORD) {
+    if (password !== adminPassword.value()) {
       res.status(403).json({ ok: false, error: "unauthorized" });
       return;
     }
@@ -565,7 +588,7 @@ exports.getEvents = onRequest(
 // Read/change a specific event's sub-admin password (main admin, or that
 // event's own current password, may call this).
 exports.getEventPassword = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -604,7 +627,7 @@ exports.getEventPassword = onRequest(
 );
 
 exports.setEventPassword = onRequest(
-  { region: "us-central1" },
+  { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
     if (req.method === "OPTIONS") {
@@ -650,7 +673,7 @@ function setCorsHeaders(res) {
 
 async function isAuthorizedForEvent(eventId, password) {
   if (!password || typeof password !== "string") return false;
-  if (password === ADMIN_PASSWORD) return true;
+  if (password === adminPassword.value()) return true;
 
   const pwdSnap = await admin.database().ref(`/passwords/${eventId}`).once("value");
   return String(pwdSnap.val() || "") === password;
@@ -683,6 +706,400 @@ async function listScreenImages(imagesRef) {
     createdAt: data[id].createdAt || "",
   })).sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
 }
+
+// ===== EVENT MANAGERS (mid-tier role under the super admin: owns a subset of
+// events they created, no access to other managers' events or site-wide tools) =====
+
+function generateEventId() {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 6; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+  return id;
+}
+
+function generateEventPassword() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function generateManagerId() {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < 8; i++) id += chars.charAt(Math.floor(Math.random() * chars.length));
+  return id;
+}
+
+async function isAuthorizedManager(managerId, password) {
+  if (!managerId || typeof managerId !== "string" || !password || typeof password !== "string") return false;
+  const snap = await admin.database().ref(`/managers/${managerId}`).once("value");
+  const manager = snap.val();
+  return !!manager && String(manager.password) === password;
+}
+
+function mergeEventPassword(id, eventsData, passwordsData) {
+  const meta = Object.assign({}, eventsData[id].meta || {});
+  meta.subAdminPassword = passwordsData[id] || "";
+  return {
+    id,
+    meta,
+    blessingCount: eventsData[id].blessings ? Object.keys(eventsData[id].blessings).length : 0,
+  };
+}
+
+// Manager-only: list just the events this manager owns.
+exports.getManagerEvents = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getManagerEvents", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { managerId, password } = req.body || {};
+    if (!(await isAuthorizedManager(managerId, password))) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+
+    try {
+      const [eventsSnap, passwordsSnap] = await Promise.all([
+        admin.database().ref("/events").once("value"),
+        admin.database().ref("/passwords").once("value"),
+      ]);
+      const eventsData = eventsSnap.val() || {};
+      const passwordsData = passwordsSnap.val() || {};
+      const events = Object.keys(eventsData)
+        .filter((id) => eventsData[id].meta && eventsData[id].meta.ownerId === managerId)
+        .map((id) => mergeEventPassword(id, eventsData, passwordsData));
+      res.json({ ok: true, events });
+    } catch (error) {
+      console.error("getManagerEvents error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Manager-only: create a new event, stamped with this manager's ownerId server-side.
+// This always runs through the Admin SDK (never a direct client write like
+// register.html uses) so a manager can never forge another manager's ownerId -
+// there's no Firebase Auth here for security rules to check that against.
+exports.createManagerEvent = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("createManagerEvent", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { managerId, password, celebrantName, organizerName, organizerPhone, eventDate, notifyEmail } = req.body || {};
+    if (!(await isAuthorizedManager(managerId, password))) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    if (!celebrantName || !organizerName || !organizerPhone || !eventDate) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const eventId = generateEventId();
+      const meta = {
+        celebrantName: String(celebrantName).slice(0, 99),
+        organizerName: String(organizerName).slice(0, 99),
+        organizerPhone: String(organizerPhone).slice(0, 19),
+        eventDate: String(eventDate),
+        createdAt: new Date().toISOString(),
+        status: "active",
+        ownerId: managerId,
+      };
+      if (notifyEmail) meta.notifyEmail = String(notifyEmail).slice(0, 199);
+
+      const subAdminPassword = generateEventPassword();
+      await admin.database().ref(`/events/${eventId}/meta`).set(meta);
+      await Promise.all([
+        admin.database().ref(`/passwords/${eventId}`).set(subAdminPassword),
+        admin.database().ref(`/eventIndex/${eventId}`).set({ createdAt: meta.createdAt }),
+      ]);
+      res.json({ ok: true, eventId });
+    } catch (error) {
+      console.error("createManagerEvent error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: create a new event-manager account.
+exports.createEventManager = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("createEventManager", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password, username, name, managerPassword } = req.body || {};
+    if (password !== adminPassword.value()) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    const cleanUsername = typeof username === "string" ? username.trim() : "";
+    if (!cleanUsername || cleanUsername.length > 50 || !managerPassword || typeof managerPassword !== "string" || managerPassword.length < 1 || managerPassword.length > 40) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const managersSnap = await admin.database().ref("/managers").once("value");
+      const managers = managersSnap.val() || {};
+      const exists = Object.keys(managers).some((id) => managers[id].username === cleanUsername);
+      if (exists) {
+        res.status(409).json({ ok: false, error: "username_taken" });
+        return;
+      }
+      const managerId = generateManagerId();
+      await admin.database().ref(`/managers/${managerId}`).set({
+        username: cleanUsername,
+        name: (typeof name === "string" && name.trim()) ? name.trim().slice(0, 99) : cleanUsername,
+        password: managerPassword,
+        createdAt: new Date().toISOString(),
+      });
+      res.json({ ok: true, managerId });
+    } catch (error) {
+      console.error("createEventManager error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Public: self-service sign-up for an event-manager account (email + password).
+// Unlike createEventManager this needs no admin password - anyone can register,
+// same trust level as the existing one-off "open a new event" flow - but every
+// account created this way still shows up in the super admin's managers table,
+// since it's the same /managers node either way.
+exports.signupEventManager = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("signupEventManager", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { email, name, password } = req.body || {};
+    const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (
+      !cleanEmail ||
+      cleanEmail.length > 100 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) ||
+      !password ||
+      typeof password !== "string" ||
+      password.length < 4 ||
+      password.length > 40
+    ) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const managersSnap = await admin.database().ref("/managers").once("value");
+      const managers = managersSnap.val() || {};
+      const exists = Object.keys(managers).some((id) => managers[id].username === cleanEmail);
+      if (exists) {
+        res.status(409).json({ ok: false, error: "email_taken" });
+        return;
+      }
+      const managerId = generateManagerId();
+      const displayName = (typeof name === "string" && name.trim()) ? name.trim().slice(0, 99) : cleanEmail;
+      await admin.database().ref(`/managers/${managerId}`).set({
+        username: cleanEmail,
+        name: displayName,
+        password,
+        createdAt: new Date().toISOString(),
+      });
+      res.json({ ok: true, managerId, name: displayName });
+    } catch (error) {
+      console.error("signupEventManager error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: list all event managers, each with the events they own.
+exports.getEventManagers = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getEventManagers", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password } = req.body || {};
+    if (password !== adminPassword.value()) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+
+    try {
+      const [managersSnap, eventsSnap, passwordsSnap] = await Promise.all([
+        admin.database().ref("/managers").once("value"),
+        admin.database().ref("/events").once("value"),
+        admin.database().ref("/passwords").once("value"),
+      ]);
+      const managersData = managersSnap.val() || {};
+      const eventsData = eventsSnap.val() || {};
+      const passwordsData = passwordsSnap.val() || {};
+
+      const managers = Object.keys(managersData).map((id) => {
+        const events = Object.keys(eventsData)
+          .filter((eid) => eventsData[eid].meta && eventsData[eid].meta.ownerId === id)
+          .map((eid) => mergeEventPassword(eid, eventsData, passwordsData));
+        return {
+          id,
+          username: managersData[id].username,
+          name: managersData[id].name || managersData[id].username,
+          createdAt: managersData[id].createdAt || "",
+          events,
+        };
+      });
+      res.json({ ok: true, managers });
+    } catch (error) {
+      console.error("getEventManagers error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: delete an event-manager account. Their events are kept
+// (still visible to the main admin) rather than deleted along with them.
+exports.deleteEventManager = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("deleteEventManager", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password, managerId } = req.body || {};
+    if (password !== adminPassword.value()) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    if (!managerId || typeof managerId !== "string") {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      await admin.database().ref(`/managers/${managerId}`).remove();
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("deleteEventManager error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
+// Main-admin-only: reset an event-manager's password.
+exports.resetManagerPassword = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("resetManagerPassword", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password, managerId, newPassword } = req.body || {};
+    if (password !== adminPassword.value()) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    if (!managerId || typeof managerId !== "string" || !newPassword || typeof newPassword !== "string" || newPassword.length < 1 || newPassword.length > 40) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const snap = await admin.database().ref(`/managers/${managerId}`).once("value");
+      if (!snap.exists()) {
+        res.status(404).json({ ok: false, error: "not_found" });
+        return;
+      }
+      await admin.database().ref(`/managers/${managerId}/password`).set(newPassword);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("resetManagerPassword error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
 
 function htmlResponse(title, subtitle, color) {
   return `

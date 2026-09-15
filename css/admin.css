@@ -38,7 +38,8 @@
   margin-bottom: 24px;
 }
 
-.login-card input[type="password"] {
+.login-card input[type="password"],
+.login-card input[type="text"] {
   width: 100%;
   padding: 12px 16px;
   border: 1px solid var(--navy-border);
@@ -52,7 +53,8 @@
   transition: border-color var(--transition);
 }
 
-.login-card input[type="password"]:focus {
+.login-card input[type="password"]:focus,
+.login-card input[type="text"]:focus {
   outline: none;
   border-color: var(--gold);
   box-shadow: 0 0 0 3px var(--gold-muted);
@@ -167,13 +169,24 @@
 /* ===== ADMIN SECTION ===== */
 .admin-section {
   margin-bottom: 24px;
+  background: var(--navy-card);
+  border: 1px solid var(--navy-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
 }
 
 .section-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.section-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .section-header h2 {

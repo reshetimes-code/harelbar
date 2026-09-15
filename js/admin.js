@@ -16,10 +16,17 @@
   const SET_EVENT_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/setEventPassword';
   const APPROVE_BLESSING_API = 'https://approvblessing-ayhgolerzq-uc.a.run.app';
   const MANAGE_TRASH_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/manageTrash';
+  const GET_MANAGER_EVENTS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getManagerEvents';
+  const CREATE_MANAGER_EVENT_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/createManagerEvent';
+  const CREATE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/createEventManager';
+  const GET_EVENT_MANAGERS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getEventManagers';
+  const DELETE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/deleteEventManager';
+  const RESET_MANAGER_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/resetManagerPassword';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
   const loginForm = document.getElementById('login-form');
+  const usernameInput = document.getElementById('admin-username');
   const passwordInput = document.getElementById('admin-password');
   const loginError = document.getElementById('login-error');
   const logoutBtn = document.getElementById('logout-btn');
@@ -35,6 +42,9 @@
   let trashUnsubscribe = null;
   let leadsUnsubscribe = null;
   let isMainAdmin = false;
+  let isManager = false;
+  let managerId = null;
+  let managerName = '';
 
   // Check URL param for sub-admin event
   var urlEvent = new URLSearchParams(window.location.search).get('event');
@@ -45,6 +55,11 @@
   // Check session
   if (sessionStorage.getItem('admin_auth') === 'true') {
     isMainAdmin = true;
+    showPanel();
+  } else if (sessionStorage.getItem('manager_auth') === 'true') {
+    isManager = true;
+    managerId = sessionStorage.getItem('manager_id');
+    managerName = sessionStorage.getItem('manager_name') || '';
     showPanel();
   } else if (sessionStorage.getItem('sub_admin_event')) {
     isMainAdmin = false;
@@ -57,15 +72,29 @@
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
     var pwd = passwordInput.value.trim();
+    var uname = usernameInput ? usernameInput.value.trim() : '';
+
+    var body = { password: pwd };
+    if (uname) body.username = uname;
 
     fetch(SUB_ADMIN_LOGIN_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pwd })
+      body: JSON.stringify(body)
     }).then(function(res) {
       return res.json().catch(function() { return {}; });
     }).then(function(data) {
-      if (data && data.ok && data.isMainAdmin) {
+      if (data && data.ok && data.role === 'manager') {
+        sessionStorage.setItem('manager_auth', 'true');
+        sessionStorage.setItem('manager_id', data.managerId);
+        sessionStorage.setItem('manager_name', data.name || uname);
+        sessionStorage.setItem('admin_access_password', pwd);
+        isManager = true;
+        managerId = data.managerId;
+        managerName = data.name || uname;
+        loginError.classList.remove('show');
+        showPanel();
+      } else if (data && data.ok && data.isMainAdmin) {
         sessionStorage.setItem('admin_auth', 'true');
         sessionStorage.setItem('admin_access_password', pwd);
         isMainAdmin = true;
@@ -93,12 +122,19 @@
     sessionStorage.removeItem('admin_auth');
     sessionStorage.removeItem('sub_admin_event');
     sessionStorage.removeItem('admin_access_password');
+    sessionStorage.removeItem('manager_auth');
+    sessionStorage.removeItem('manager_id');
+    sessionStorage.removeItem('manager_name');
     isMainAdmin = false;
+    isManager = false;
+    managerId = null;
+    managerName = '';
     urlEvent = null;
     history.pushState({}, '', window.location.pathname);
     adminPanel.style.display = 'none';
     loginScreen.style.display = 'flex';
     passwordInput.value = '';
+    if (usernameInput) usernameInput.value = '';
     if (blessingsUnsubscribe) blessingsUnsubscribe();
     if (trashUnsubscribe) { trashUnsubscribe(); trashUnsubscribe = null; }
     if (leadsUnsubscribe) { leadsUnsubscribe(); leadsUnsubscribe = null; }
@@ -108,7 +144,7 @@
     loginScreen.style.display = 'none';
     adminPanel.style.display = 'block';
 
-    if (isMainAdmin) {
+    if (isMainAdmin || isManager) {
       // If the URL still points at a specific event (e.g. the browser
       // reloaded admin.html after navigating back from book.html/qr.html),
       // land back on that event's detail view instead of the events list.
@@ -131,7 +167,7 @@
   // via browser back or a fresh reload - restores the same event instead
   // of dropping to the main events list.
   function syncEventUrl(eventId) {
-    if (!isMainAdmin) return;
+    if (!isMainAdmin && !isManager) return;
     var basePath = window.location.pathname;
     var newUrl = eventId ? (basePath + '?event=' + encodeURIComponent(eventId)) : basePath;
     if (window.location.pathname + window.location.search !== newUrl) {
@@ -157,7 +193,7 @@
     var evId = new URLSearchParams(window.location.search).get('event');
     if (evId) {
       showEventDetail(evId);
-    } else if (isMainAdmin) {
+    } else if (isMainAdmin || isManager) {
       showEventsView();
     }
   });
@@ -183,7 +219,24 @@
     }
     currentEventId = null;
     syncEventUrl(null);
+    applyRoleVisibility();
     loadEvents();
+    if (isMainAdmin) loadManagers();
+  }
+
+  // Event manager sees only their own events, can't see leads or manage
+  // other event managers - only the super admin gets the full panel.
+  function applyRoleVisibility() {
+    var leadsBtnEl = document.getElementById('leads-btn');
+    var newEventLink = document.getElementById('new-event-link');
+    var sectionNewEventLink = document.getElementById('section-new-event-link');
+    var managerNewEventBtn = document.getElementById('manager-new-event-btn');
+    var managersSection = document.getElementById('managers-section');
+    if (leadsBtnEl) leadsBtnEl.style.display = isManager ? 'none' : '';
+    if (newEventLink) newEventLink.style.display = isManager ? 'none' : '';
+    if (sectionNewEventLink) sectionNewEventLink.style.display = isManager ? 'none' : '';
+    if (managerNewEventBtn) managerNewEventBtn.style.display = isManager ? '' : 'none';
+    if (managersSection) managersSection.style.display = isMainAdmin ? 'block' : 'none';
   }
 
   // ===== LEADS VIEW =====
@@ -296,10 +349,14 @@
   }
 
   function loadEvents() {
-    fetch(GET_EVENTS_API, {
+    var url = isManager ? GET_MANAGER_EVENTS_API : GET_EVENTS_API;
+    var body = isManager
+      ? { managerId: managerId, password: sessionStorage.getItem('admin_access_password') }
+      : { password: sessionStorage.getItem('admin_access_password') };
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+      body: JSON.stringify(body)
     }).then(function(res) {
       return res.json().catch(function() { return {}; });
     }).then(function(data) {
@@ -530,6 +587,282 @@
     }
   });
 
+  // ===== EVENT MANAGERS (super admin only - creates/lists event managers,
+  // each of whom owns a filtered subset of the events above) =====
+  function loadManagers() {
+    var loader = document.getElementById('managers-loader');
+    if (loader) loader.style.display = 'flex';
+    fetch(GET_EVENT_MANAGERS_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+    }).then(function(res) {
+      return res.json().catch(function() { return {}; });
+    }).then(function(data) {
+      renderManagers((data && data.ok && data.managers) || []);
+    }).catch(function() {
+      renderManagers([]);
+    });
+  }
+
+  function renderManagers(managers) {
+    var loader = document.getElementById('managers-loader');
+    if (loader) loader.style.display = 'none';
+    document.getElementById('managers-count').textContent = managers.length;
+
+    if (managers.length === 0) {
+      document.getElementById('managers-table').style.display = 'none';
+      document.getElementById('empty-managers').style.display = 'block';
+      return;
+    }
+    document.getElementById('empty-managers').style.display = 'none';
+    document.getElementById('managers-table').style.display = 'table';
+
+    var tbody = document.getElementById('managers-tbody');
+    tbody.innerHTML = managers.map(function(mgr) {
+      var eventsRows = (mgr.events || []).map(function(ev) {
+        var meta = ev.meta;
+        var dateStr = '';
+        var isPast = null;
+        if (meta.eventDate) {
+          var rawDate = new Date(meta.eventDate);
+          if (!isNaN(rawDate.getTime())) {
+            dateStr = rawDate.toLocaleDateString('he-IL');
+            var today = new Date(); today.setHours(0, 0, 0, 0);
+            var evDay = new Date(rawDate); evDay.setHours(0, 0, 0, 0);
+            isPast = evDay.getTime() < today.getTime();
+          }
+        }
+        var statusClass = isPast === null ? 'unknown' : (isPast ? 'past' : 'upcoming');
+        var statusLabel = isPast === null ? 'לא ידוע' : (isPast ? 'עבר' : 'עתידי');
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">' +
+          '<div><span style="color:var(--gold-light);font-weight:700;">' + escapeHtml(meta.celebrantName || '') + '</span>' +
+          '<span style="color:var(--text-muted);font-size:0.85rem;margin-right:10px;">מארגן: ' + escapeHtml(meta.organizerName || '—') + '</span>' +
+          '<span style="color:var(--text-muted);font-size:0.85rem;margin-right:10px;">' + (dateStr || '—') + ' · ' + ev.blessingCount + ' ברכות</span></div>' +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<span class="event-badge ' + statusClass + '">' + statusLabel + '</span>' +
+            '<button class="manager-event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול</button>' +
+          '</div>' +
+          '</div>';
+      }).join('') || '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">אין עדיין אירועים למנהל הזה</p>';
+
+      return '<tr class="event-row manager-row" data-manager-id="' + mgr.id + '">' +
+          '<td>' + escapeHtml(mgr.username || '') + '</td>' +
+          '<td>' + escapeHtml(mgr.name || '') + '</td>' +
+          '<td>' + (mgr.events ? mgr.events.length : 0) + ' אירועים</td>' +
+          '<td style="text-align:left;">' +
+            '<div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">' +
+              '<button class="manager-reset-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="איפוס סיסמה" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔑</button>' +
+              '<button class="manager-delete-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="מחיקת מנהל" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🗑</button>' +
+              '<span class="manager-header-row" data-manager-id="' + mgr.id + '" style="cursor:pointer;display:inline-flex;">' +
+                '<span class="event-arrow manager-arrow" style="color:var(--text-muted);font-size:1.2rem;transition:transform 0.3s;">▼</span>' +
+              '</span>' +
+            '</div>' +
+          '</td>' +
+        '</tr>' +
+        '<tr class="event-details-row manager-details-row" data-manager-id="' + mgr.id + '">' +
+          '<td colspan="4" style="padding:0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+            '<div class="event-details manager-details" style="display:none;padding:4px 16px 14px;">' + eventsRows + '</div>' +
+          '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  var managersTbody = document.getElementById('managers-tbody');
+  if (managersTbody) {
+    managersTbody.addEventListener('click', function(e) {
+      // Toggle dropdown - reveals this manager's own events
+      var tr = e.target.closest('tr.manager-row');
+      if (tr && !e.target.closest('button')) {
+        var detailsRow = tr.nextElementSibling;
+        var details = detailsRow && detailsRow.querySelector('.manager-details');
+        var arrow = tr.querySelector('.manager-arrow');
+        if (!details) return;
+        if (details.style.display === 'none') {
+          details.style.display = 'block';
+          arrow.style.transform = 'rotate(180deg)';
+        } else {
+          details.style.display = 'none';
+          arrow.style.transform = 'rotate(0deg)';
+        }
+        return;
+      }
+
+      // Enter one of this manager's events -> exact same full event panel
+      // the super admin gets from the main events table.
+      var enterBtn = e.target.closest('.manager-event-enter-btn');
+      if (enterBtn) {
+        e.stopPropagation();
+        showEventDetail(enterBtn.dataset.eventId);
+        return;
+      }
+
+      var resetBtn = e.target.closest('.manager-reset-btn');
+      if (resetBtn) {
+        e.stopPropagation();
+        var rMgrId = resetBtn.dataset.managerId;
+        var rUsername = resetBtn.dataset.username;
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:center;">' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.3rem;margin:0 0 14px;">איפוס סיסמה ל-' + rUsername + '</h2>' +
+            '<input type="text" id="swal-manager-new-pwd" placeholder="סיסמה חדשה" style="width:100%;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.1rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'עדכן סיסמה',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 380
+        }).then(function(result) {
+          if (!result.isConfirmed) return;
+          var newPwd = document.getElementById('swal-manager-new-pwd') ? document.getElementById('swal-manager-new-pwd').value.trim() : '';
+          if (!newPwd) return;
+          fetch(RESET_MANAGER_PASSWORD_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password'), managerId: rMgrId, newPassword: newPwd })
+          }).then(function(res) { return res.json().catch(function() { return {}; }); })
+            .then(function(data) {
+              if (data && data.ok) {
+                Swal.fire({ text: 'הסיסמה עודכנה', icon: 'success', timer: 1500, showConfirmButton: false, background: '#0c1425', color: '#fff' });
+              } else {
+                Swal.fire({ text: 'שגיאה בעדכון הסיסמה', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+              }
+            });
+        });
+        return;
+      }
+
+      var delBtn = e.target.closest('.manager-delete-btn');
+      if (delBtn) {
+        e.stopPropagation();
+        var dMgrId = delBtn.dataset.managerId;
+        var dUsername = delBtn.dataset.username;
+        showConfirm('מחיקת מנהל אירוע', 'למחוק את "' + dUsername + '"? האירועים שלו יישארו זמינים לסופר אדמין.', function() {
+          fetch(DELETE_EVENT_MANAGER_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password'), managerId: dMgrId })
+          }).then(function(res) { return res.json().catch(function() { return {}; }); })
+            .then(function() { loadManagers(); });
+        });
+        return;
+      }
+    });
+  }
+
+  // "+ מנהל אירוע חדש" (super admin creates a new event-manager account)
+  var newManagerBtn = document.getElementById('new-manager-btn');
+  if (newManagerBtn) {
+    newManagerBtn.addEventListener('click', function() {
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:right;">' +
+          '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.3rem;margin:0 0 16px;text-align:center;">מנהל אירוע חדש</h2>' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם תצוגה</label>' +
+          '<input type="text" id="swal-mgr-name" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש</label>' +
+          '<input type="text" id="swal-mgr-username" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">סיסמה</label>' +
+          '<input type="text" id="swal-mgr-password" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        confirmButtonText: 'יצירה',
+        confirmButtonColor: '#b8953e',
+        showCancelButton: true,
+        cancelButtonText: 'ביטול',
+        width: 380,
+        preConfirm: function() {
+          var name = document.getElementById('swal-mgr-name').value.trim();
+          var username = document.getElementById('swal-mgr-username').value.trim();
+          var pwd = document.getElementById('swal-mgr-password').value.trim();
+          if (!username || !pwd) {
+            Swal.showValidationMessage('נא למלא שם משתמש וסיסמה');
+            return false;
+          }
+          return { name: name, username: username, password: pwd };
+        }
+      }).then(function(result) {
+        if (!result.isConfirmed) return;
+        fetch(CREATE_EVENT_MANAGER_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            password: sessionStorage.getItem('admin_access_password'),
+            username: result.value.username,
+            name: result.value.name,
+            managerPassword: result.value.password
+          })
+        }).then(function(res) { return res.json().catch(function() { return {}; }); })
+          .then(function(data) {
+            if (data && data.ok) {
+              loadManagers();
+            } else if (data && data.error === 'username_taken') {
+              Swal.fire({ text: 'שם המשתמש כבר תפוס', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            } else {
+              Swal.fire({ text: 'שגיאה ביצירת מנהל האירוע', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            }
+          });
+      });
+    });
+  }
+
+  // "+ אירוע חדש" (an event manager creating one of their own events)
+  var managerNewEventBtn = document.getElementById('manager-new-event-btn');
+  if (managerNewEventBtn) {
+    managerNewEventBtn.addEventListener('click', function() {
+      Swal.fire({
+        html: '<div dir="rtl" style="text-align:right;">' +
+          '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.3rem;margin:0 0 16px;text-align:center;">אירוע חדש</h2>' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם החוגג/ת</label>' +
+          '<input type="text" id="swal-ev-celebrant" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם המארגן</label>' +
+          '<input type="text" id="swal-ev-organizer" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">טלפון המארגן</label>' +
+          '<input type="text" id="swal-ev-phone" dir="ltr" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">תאריך האירוע</label>' +
+          '<input type="date" id="swal-ev-date" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '</div>',
+        background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        confirmButtonText: 'יצירת אירוע',
+        confirmButtonColor: '#b8953e',
+        showCancelButton: true,
+        cancelButtonText: 'ביטול',
+        width: 380,
+        preConfirm: function() {
+          var celebrantName = document.getElementById('swal-ev-celebrant').value.trim();
+          var organizerName = document.getElementById('swal-ev-organizer').value.trim();
+          var organizerPhone = document.getElementById('swal-ev-phone').value.trim();
+          var eventDate = document.getElementById('swal-ev-date').value;
+          if (!celebrantName || !organizerName || !organizerPhone || !eventDate) {
+            Swal.showValidationMessage('נא למלא את כל השדות');
+            return false;
+          }
+          return { celebrantName: celebrantName, organizerName: organizerName, organizerPhone: organizerPhone, eventDate: eventDate };
+        }
+      }).then(function(result) {
+        if (!result.isConfirmed) return;
+        fetch(CREATE_MANAGER_EVENT_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({
+            managerId: managerId,
+            password: sessionStorage.getItem('admin_access_password')
+          }, result.value))
+        }).then(function(res) { return res.json().catch(function() { return {}; }); })
+          .then(function(data) {
+            if (data && data.ok) {
+              loadEvents();
+            } else {
+              Swal.fire({ text: 'שגיאה ביצירת האירוע', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            }
+          });
+      });
+    });
+  }
+
   // ===== EVENT DETAIL VIEW (Blessings) =====
   function showEventDetail(eventId) {
     currentEventId = eventId;
@@ -540,9 +873,9 @@
 
     // Hide back button for sub-admin
     var backBtn = document.getElementById('back-to-events');
-    if (backBtn) backBtn.style.display = isMainAdmin ? 'inline-flex' : 'none';
+    if (backBtn) backBtn.style.display = (isMainAdmin || isManager) ? 'inline-flex' : 'none';
     var sideBackBtn = document.getElementById('back-to-events-side');
-    if (sideBackBtn) sideBackBtn.style.display = isMainAdmin ? 'inline-flex' : 'none';
+    if (sideBackBtn) sideBackBtn.style.display = (isMainAdmin || isManager) ? 'inline-flex' : 'none';
 
     // Load event meta
     getEventMeta(eventId).then(function(meta) {
@@ -1485,10 +1818,29 @@
       showCancelButton: true,
       cancelButtonText: 'ביטול',
       width: 380,
+      showLoaderOnConfirm: true,
       preConfirm: function() {
         var pwd = document.getElementById('screen-images-password').value.trim();
-        if (!pwd) return false;
-        return pwd;
+        if (!pwd) {
+          Swal.showValidationMessage('נא להזין סיסמה');
+          return false;
+        }
+        return fetch(SUB_ADMIN_LOGIN_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        }).then(function(res) {
+          return res.json().catch(function() { return {}; });
+        }).then(function(data) {
+          if (!data || !data.ok) {
+            Swal.showValidationMessage('סיסמה שגויה');
+            return false;
+          }
+          return pwd;
+        }).catch(function() {
+          Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
+          return false;
+        });
       },
       didOpen: function() {
         document.getElementById('screen-images-password').focus();

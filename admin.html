@@ -204,6 +204,7 @@
       <h1>פאנל ניהול</h1>
       <p>הכנס סיסמה כדי להמשיך</p>
       <form id="login-form">
+        <input type="text" id="admin-username" placeholder="שם משתמש (למנהלי אירועים בלבד)" autocomplete="off" style="margin-bottom:10px;">
         <input type="password" id="admin-password" placeholder="סיסמה" autocomplete="off">
         <span class="error-msg" id="login-error">סיסמה שגויה</span>
         <button type="submit" class="btn btn-primary">כניסה</button>
@@ -224,7 +225,8 @@
           </div>
           <div class="admin-header-actions">
             <button class="btn btn-secondary btn-sm" id="leads-btn">📋 לידים</button>
-            <a href="register.html" class="btn btn-sm" style="background:var(--gold);color:#0c1425;text-decoration:none;">+ פתח אירוע חדש</a>
+            <a href="register.html" class="btn btn-sm" id="new-event-link" style="background:var(--gold);color:#0c1425;text-decoration:none;">+ פתח אירוע חדש</a>
+            <button class="btn btn-sm" id="manager-new-event-btn" style="display:none;background:var(--gold);color:#0c1425;">+ אירוע חדש</button>
             <button class="btn btn-secondary btn-sm" id="logout-btn">התנתק</button>
           </div>
         </div>
@@ -248,8 +250,11 @@
 
         <div class="admin-section">
           <div class="section-header">
-            <h2>אירועים</h2>
-            <span class="section-count" id="events-count">0</span>
+            <div class="section-header-title">
+              <h2>אירועים פרטיים</h2>
+              <span class="section-count" id="events-count">0</span>
+            </div>
+            <a href="register.html" class="btn btn-sm" id="section-new-event-link" style="background:var(--gold);color:#0c1425;text-decoration:none;">+ אירוע פרטי</a>
           </div>
           <div id="events-loader" class="admin-loader">
             <div class="loader-spinner"></div>
@@ -270,6 +275,34 @@
           </table>
           <div id="empty-events" class="admin-empty" style="display:none;">
             <p>אין אירועים עדיין</p>
+          </div>
+        </div>
+
+        <div class="admin-section" id="managers-section" style="display:none;">
+          <div class="section-header">
+            <h2>מנהלי אירועים</h2>
+            <span class="section-count" id="managers-count">0</span>
+          </div>
+          <div style="margin-bottom:12px;">
+            <button class="btn btn-sm" id="new-manager-btn" style="background:var(--gold);color:#0c1425;">+ מנהל אירוע חדש</button>
+          </div>
+          <div id="managers-loader" class="admin-loader">
+            <div class="loader-spinner"></div>
+            <p>טוען מנהלי אירועים...</p>
+          </div>
+          <table class="events-table" id="managers-table" style="display:none;">
+            <thead>
+              <tr>
+                <th>משתמש / אימייל</th>
+                <th>שם</th>
+                <th>אירועים</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="managers-tbody"></tbody>
+          </table>
+          <div id="empty-managers" class="admin-empty" style="display:none;">
+            <p>אין עדיין מנהלי אירועים</p>
           </div>
         </div>
       </div>
