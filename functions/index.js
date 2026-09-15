@@ -1101,6 +1101,62 @@ exports.resetManagerPassword = onRequest(
   }
 );
 
+// Main-admin-only: edit an event-manager's display name and/or username/email.
+exports.updateEventManager = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("updateEventManager", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { password, managerId, username, name } = req.body || {};
+    if (password !== adminPassword.value()) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+    const cleanUsername = typeof username === "string" ? username.trim() : "";
+    const cleanName = typeof name === "string" ? name.trim() : "";
+    if (!managerId || typeof managerId !== "string" || !cleanUsername || cleanUsername.length > 50 || !cleanName || cleanName.length > 99) {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const managerRef = admin.database().ref(`/managers/${managerId}`);
+      const snap = await managerRef.once("value");
+      if (!snap.exists()) {
+        res.status(404).json({ ok: false, error: "not_found" });
+        return;
+      }
+
+      const managersSnap = await admin.database().ref("/managers").once("value");
+      const managers = managersSnap.val() || {};
+      const takenBy = Object.keys(managers).find((id) => id !== managerId && managers[id].username === cleanUsername);
+      if (takenBy) {
+        res.status(409).json({ ok: false, error: "username_taken" });
+        return;
+      }
+
+      await managerRef.update({ username: cleanUsername, name: cleanName });
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("updateEventManager error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
 function htmlResponse(title, subtitle, color) {
   return `
     <!DOCTYPE html>

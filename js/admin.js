@@ -22,6 +22,7 @@
   const GET_EVENT_MANAGERS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getEventManagers';
   const DELETE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/deleteEventManager';
   const RESET_MANAGER_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/resetManagerPassword';
+  const UPDATE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/updateEventManager';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -635,16 +636,22 @@
         }
         var statusClass = isPast === null ? 'unknown' : (isPast ? 'past' : 'upcoming');
         var statusLabel = isPast === null ? 'לא ידוע' : (isPast ? 'עבר' : 'עתידי');
-        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);flex-wrap:wrap;">' +
-          '<div><span style="color:var(--gold-light);font-weight:700;">' + escapeHtml(meta.celebrantName || '') + '</span>' +
-          '<span style="color:var(--text-muted);font-size:0.85rem;margin-right:10px;">מארגן: ' + escapeHtml(meta.organizerName || '—') + '</span>' +
-          '<span style="color:var(--text-muted);font-size:0.85rem;margin-right:10px;">' + (dateStr || '—') + ' · ' + ev.blessingCount + ' ברכות</span></div>' +
-          '<div style="display:flex;align-items:center;gap:10px;">' +
-            '<span class="event-badge ' + statusClass + '">' + statusLabel + '</span>' +
-            '<button class="manager-event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול</button>' +
-          '</div>' +
-          '</div>';
-      }).join('') || '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">אין עדיין אירועים למנהל הזה</p>';
+        return '<tr>' +
+            '<td><span class="event-celebrant">' + escapeHtml(meta.celebrantName || '') + '</span></td>' +
+            '<td>' + escapeHtml(meta.organizerName || '—') + '</td>' +
+            '<td>' + (dateStr || '—') + '</td>' +
+            '<td>' + ev.blessingCount + ' ברכות</td>' +
+            '<td><span class="event-badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+            '<td style="text-align:left;"><button class="manager-event-enter-btn" data-event-id="' + ev.id + '" style="background:var(--gold);color:#0c1425;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:Assistant,sans-serif;font-weight:700;">ניהול</button></td>' +
+          '</tr>';
+      }).join('');
+
+      var eventsTableOrEmpty = eventsRows
+        ? '<table class="events-table" style="margin-top:0;">' +
+            '<thead><tr><th>שם חוגג</th><th>מארגן</th><th>תאריך</th><th>ברכות</th><th>סטטוס</th><th></th></tr></thead>' +
+            '<tbody>' + eventsRows + '</tbody>' +
+          '</table>'
+        : '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">אין עדיין אירועים למנהל הזה</p>';
 
       return '<tr class="event-row manager-row" data-manager-id="' + mgr.id + '">' +
           '<td>' + escapeHtml(mgr.username || '') + '</td>' +
@@ -652,6 +659,7 @@
           '<td>' + (mgr.events ? mgr.events.length : 0) + ' אירועים</td>' +
           '<td style="text-align:left;">' +
             '<div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">' +
+              '<button class="manager-edit-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" data-name="' + escapeHtml(mgr.name || '') + '" title="עריכת מנהל" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">✏️</button>' +
               '<button class="manager-reset-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="איפוס סיסמה" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔑</button>' +
               '<button class="manager-delete-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="מחיקת מנהל" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🗑</button>' +
               '<span class="manager-header-row" data-manager-id="' + mgr.id + '" style="cursor:pointer;display:inline-flex;">' +
@@ -662,7 +670,7 @@
         '</tr>' +
         '<tr class="event-details-row manager-details-row" data-manager-id="' + mgr.id + '">' +
           '<td colspan="4" style="padding:0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
-            '<div class="event-details manager-details" style="display:none;padding:4px 16px 14px;">' + eventsRows + '</div>' +
+            '<div class="event-details manager-details" style="display:none;padding:4px 16px 14px;">' + eventsTableOrEmpty + '</div>' +
           '</td>' +
         '</tr>';
     }).join('');
@@ -694,6 +702,65 @@
       if (enterBtn) {
         e.stopPropagation();
         showEventDetail(enterBtn.dataset.eventId);
+        return;
+      }
+
+      var editBtn = e.target.closest('.manager-edit-btn');
+      if (editBtn) {
+        e.stopPropagation();
+        var eMgrId = editBtn.dataset.managerId;
+        // escapeHtml() doesn't escape quotes (fine for text nodes), but these
+        // values are about to sit inside an HTML attribute, and a manager's
+        // name/username can come from the public sign-up form.
+        var eUsername = escapeHtml(editBtn.dataset.username).replace(/"/g, '&quot;');
+        var eName = escapeHtml(editBtn.dataset.name).replace(/"/g, '&quot;');
+        Swal.fire({
+          html: '<div dir="rtl" style="text-align:right;">' +
+            '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.2rem;margin:0 0 16px;text-align:center;">עריכת מנהל אירוע</h2>' +
+            '<label style="color:var(--text-muted);font-size:0.85rem;">שם מנהל האירוע</label>' +
+            '<input type="text" id="swal-edit-mgr-name" value="' + eName + '" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+            '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש / אימייל</label>' +
+            '<input type="text" id="swal-edit-mgr-username" value="' + eUsername + '" dir="ltr" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+            '</div>',
+          background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          confirmButtonText: 'שמירה',
+          confirmButtonColor: '#b8953e',
+          showCancelButton: true,
+          cancelButtonText: 'ביטול',
+          width: 380,
+          showLoaderOnConfirm: true,
+          preConfirm: function() {
+            var newName = document.getElementById('swal-edit-mgr-name').value.trim();
+            var newUsername = document.getElementById('swal-edit-mgr-username').value.trim();
+            if (!newName || !newUsername) {
+              Swal.showValidationMessage('נא למלא שם ושם משתמש');
+              return false;
+            }
+            return fetch(UPDATE_EVENT_MANAGER_API, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                password: sessionStorage.getItem('admin_access_password'),
+                managerId: eMgrId,
+                name: newName,
+                username: newUsername
+              })
+            }).then(function(res) { return res.json().catch(function() { return {}; }); })
+              .then(function(data) {
+                if (!data || !data.ok) {
+                  Swal.showValidationMessage(data && data.error === 'username_taken' ? 'שם המשתמש כבר תפוס' : 'שגיאה בעדכון הפרטים');
+                  return false;
+                }
+                return true;
+              }).catch(function() {
+                Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
+                return false;
+              });
+          }
+        }).then(function(result) {
+          if (result.isConfirmed) loadManagers();
+        });
         return;
       }
 
