@@ -23,6 +23,7 @@
   const DELETE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/deleteEventManager';
   const RESET_MANAGER_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/resetManagerPassword';
   const UPDATE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/updateEventManager';
+  const GET_MANAGER_LEADS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getManagerLeads';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -46,6 +47,23 @@
   let isManager = false;
   let managerId = null;
   let managerName = '';
+
+  // Wipes every role's session state before a fresh login writes its own -
+  // without this, a stale admin_auth/manager_auth flag left over from an
+  // earlier login in the same browser tab could combine with the new
+  // login's data (e.g. a manager's password ending up in admin_access_password
+  // while isMainAdmin is still true from before), showing the wrong panel.
+  function clearRoleSession() {
+    sessionStorage.removeItem('admin_auth');
+    sessionStorage.removeItem('sub_admin_event');
+    sessionStorage.removeItem('manager_auth');
+    sessionStorage.removeItem('manager_id');
+    sessionStorage.removeItem('manager_name');
+    isMainAdmin = false;
+    isManager = false;
+    managerId = null;
+    managerName = '';
+  }
 
   // Check URL param for sub-admin event
   var urlEvent = new URLSearchParams(window.location.search).get('event');
@@ -86,6 +104,7 @@
       return res.json().catch(function() { return {}; });
     }).then(function(data) {
       if (data && data.ok && data.role === 'manager') {
+        clearRoleSession();
         sessionStorage.setItem('manager_auth', 'true');
         sessionStorage.setItem('manager_id', data.managerId);
         sessionStorage.setItem('manager_name', data.name || uname);
@@ -96,12 +115,14 @@
         loginError.classList.remove('show');
         showPanel();
       } else if (data && data.ok && data.isMainAdmin) {
+        clearRoleSession();
         sessionStorage.setItem('admin_auth', 'true');
         sessionStorage.setItem('admin_access_password', pwd);
         isMainAdmin = true;
         loginError.classList.remove('show');
         showPanel();
       } else if (data && data.ok && data.eventId) {
+        clearRoleSession();
         sessionStorage.setItem('sub_admin_event', data.eventId);
         sessionStorage.setItem('admin_access_password', pwd);
         isMainAdmin = false;
@@ -225,15 +246,13 @@
     if (isMainAdmin) loadManagers();
   }
 
-  // Event manager sees only their own events, can't see leads or manage
-  // other event managers - only the super admin gets the full panel.
+  // Event manager sees only their own events and their own leads, can't
+  // manage other event managers - only the super admin gets the full panel.
   function applyRoleVisibility() {
-    var leadsBtnEl = document.getElementById('leads-btn');
     var newEventLink = document.getElementById('new-event-link');
     var sectionNewEventLink = document.getElementById('section-new-event-link');
     var managerNewEventBtn = document.getElementById('manager-new-event-btn');
     var managersSection = document.getElementById('managers-section');
-    if (leadsBtnEl) leadsBtnEl.style.display = isManager ? 'none' : '';
     if (newEventLink) newEventLink.style.display = isManager ? 'none' : '';
     if (sectionNewEventLink) sectionNewEventLink.style.display = isManager ? 'none' : '';
     if (managerNewEventBtn) managerNewEventBtn.style.display = isManager ? '' : 'none';
@@ -255,10 +274,14 @@
   function loadLeads() {
     var loader = document.getElementById('leads-loader');
     if (loader) loader.style.display = 'flex';
-    fetch(GET_LEADS_API, {
+    var url = isManager ? GET_MANAGER_LEADS_API : GET_LEADS_API;
+    var body = isManager
+      ? { managerId: managerId, password: sessionStorage.getItem('admin_access_password') }
+      : { password: sessionStorage.getItem('admin_access_password') };
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+      body: JSON.stringify(body)
     }).then(function(res) {
       return res.json().catch(function() { return {}; });
     }).then(function(data) {
@@ -659,6 +682,7 @@
           '<td>' + (mgr.events ? mgr.events.length : 0) + ' אירועים</td>' +
           '<td style="text-align:left;">' +
             '<div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">' +
+              '<button class="manager-login-as-btn" data-manager-id="' + mgr.id + '" data-name="' + escapeHtml(mgr.name || '') + '" data-password="' + escapeHtml(mgr.password || '') + '" title="כניסה לחשבון המנהל" style="background:none;border:1px solid rgba(184,149,62,0.4);color:var(--gold-light);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔓</button>' +
               '<button class="manager-edit-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" data-name="' + escapeHtml(mgr.name || '') + '" title="עריכת מנהל" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">✏️</button>' +
               '<button class="manager-reset-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="איפוס סיסמה" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔑</button>' +
               '<button class="manager-delete-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="מחיקת מנהל" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🗑</button>' +
@@ -702,6 +726,26 @@
       if (enterBtn) {
         e.stopPropagation();
         showEventDetail(enterBtn.dataset.eventId);
+        return;
+      }
+
+      // Super-admin-only "view as" shortcut - switches this browser session
+      // into that manager's own panel using the password getEventManagers
+      // already merged in, no need to know/ask for it separately.
+      var loginAsBtn = e.target.closest('.manager-login-as-btn');
+      if (loginAsBtn) {
+        e.stopPropagation();
+        var laMgrId = loginAsBtn.dataset.managerId;
+        var laName = loginAsBtn.dataset.name;
+        var laPassword = loginAsBtn.dataset.password;
+        showConfirm('כניסה כמנהל אירוע', 'להיכנס לפאנל של "' + laName + '"? תעבור/י לתצוגה שלו.', function() {
+          clearRoleSession();
+          sessionStorage.setItem('manager_auth', 'true');
+          sessionStorage.setItem('manager_id', laMgrId);
+          sessionStorage.setItem('manager_name', laName);
+          sessionStorage.setItem('admin_access_password', laPassword);
+          window.location.href = 'admin.html';
+        });
         return;
       }
 

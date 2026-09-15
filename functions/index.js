@@ -461,8 +461,12 @@ exports.subAdminLogin = onRequest(
       try {
         const managersSnap = await admin.database().ref("/managers").once("value");
         const managers = managersSnap.val() || {};
+        // Accept either the account's username/email or its display name -
+        // friendlier for a manager who doesn't remember which one they used.
         const managerId = Object.keys(managers).find(
-          (id) => managers[id].username === username && String(managers[id].password) === password
+          (id) =>
+            (managers[id].username === username || managers[id].name === username) &&
+            String(managers[id].password) === password
         );
         if (!managerId) {
           res.status(401).json({ ok: false, error: "invalid_password" });
@@ -788,6 +792,54 @@ exports.getManagerEvents = onRequest(
   }
 );
 
+// Manager-only: leads captured on this manager's own events (a guest on one
+// of their events' pages asking to host their own event) - never leads that
+// came from a different manager's or a private event's page.
+exports.getManagerLeads = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("getManagerLeads", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { managerId, password } = req.body || {};
+    if (!(await isAuthorizedManager(managerId, password))) {
+      res.status(403).json({ ok: false, error: "unauthorized" });
+      return;
+    }
+
+    try {
+      const [leadsSnap, eventsSnap] = await Promise.all([
+        admin.database().ref("/leads").once("value"),
+        admin.database().ref("/events").once("value"),
+      ]);
+      const leadsData = leadsSnap.val() || {};
+      const eventsData = eventsSnap.val() || {};
+      const ownEventIds = new Set(
+        Object.keys(eventsData).filter((id) => eventsData[id].meta && eventsData[id].meta.ownerId === managerId)
+      );
+      const leads = Object.keys(leadsData)
+        .map((id) => Object.assign({ id }, leadsData[id]))
+        .filter((lead) => ownEventIds.has(lead.eventId));
+      res.json({ ok: true, leads });
+    } catch (error) {
+      console.error("getManagerLeads error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
 // Manager-only: create a new event, stamped with this manager's ownerId server-side.
 // This always runs through the Admin SDK (never a direct client write like
 // register.html uses) so a manager can never forge another manager's ownerId -
@@ -1006,6 +1058,10 @@ exports.getEventManagers = onRequest(
           username: managersData[id].username,
           name: managersData[id].name || managersData[id].username,
           createdAt: managersData[id].createdAt || "",
+          // Only exposed to an already-authenticated main admin, same as how
+          // getEvents merges in each event's sub-admin password - lets the
+          // admin panel offer a one-click "log in as this manager" button.
+          password: managersData[id].password || "",
           events,
         };
       });

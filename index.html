@@ -309,6 +309,7 @@
         }).then(function(result) {
           if (!result.isConfirmed || !result.value) return;
           var data = result.value;
+          clearRoleSession();
           if (data.role === 'manager') {
             sessionStorage.setItem('manager_auth', 'true');
             sessionStorage.setItem('manager_id', data.managerId);
@@ -327,6 +328,18 @@
         });
       });
     });
+
+    // Wipes every role's session flag before a fresh login/signup writes its
+    // own, so a stale flag from an earlier session in this same browser tab
+    // can never combine with the new login (e.g. showing the super admin's
+    // panel to someone who just logged in as an event manager).
+    function clearRoleSession() {
+      sessionStorage.removeItem('admin_auth');
+      sessionStorage.removeItem('sub_admin_event');
+      sessionStorage.removeItem('manager_auth');
+      sessionStorage.removeItem('manager_id');
+      sessionStorage.removeItem('manager_name');
+    }
 
     // "פתח אירוע חדש" - offers a one-off private event (today's register.html
     // flow) or signing up as an event manager (an account that can hold
@@ -348,7 +361,17 @@
           denyButtonColor: '#25D366',
           showCancelButton: true,
           cancelButtonText: 'ביטול',
-          width: 420
+          width: 420,
+          didOpen: function() {
+            var actions = document.querySelector('.swal2-actions');
+            if (!actions) return;
+            actions.style.flexDirection = 'column';
+            actions.style.width = '100%';
+            ['.swal2-deny', '.swal2-confirm', '.swal2-cancel'].forEach(function(sel) {
+              var btn = document.querySelector(sel);
+              if (btn) { btn.style.width = '100%'; btn.style.margin = '4px 0'; }
+            });
+          }
         }).then(function(result) {
           if (result.isConfirmed) {
             window.location.href = 'register.html';
@@ -408,6 +431,7 @@
       }).then(function(result) {
         if (!result.isConfirmed || !result.value) return;
         var data = result.value;
+        clearRoleSession();
         sessionStorage.setItem('manager_auth', 'true');
         sessionStorage.setItem('manager_id', data.managerId);
         sessionStorage.setItem('manager_name', data.name || '');
