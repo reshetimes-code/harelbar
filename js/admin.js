@@ -1138,6 +1138,9 @@
           html: '<div dir="rtl" style="text-align:center;">' +
             '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.35rem;margin:0 0 12px;">📧 מייל להתראות</h2>' +
             '<p style="color:rgba(255,255,255,0.55);font-size:0.9rem;margin:0 0 14px;">לכתובת הזו יישלח מייל בכל פעם שברכה חדשה ממתינה לאישור</p>' +
+            (currentEmail
+              ? '<p style="color:rgba(255,255,255,0.75);font-size:0.85rem;margin:0 0 10px;">זו כתובת המייל הקיימת - רוצים לשנות למייל אחר? פשוט ערכו אותה למטה</p>'
+              : '') +
             '<input type="email" id="swal-notify-email" dir="ltr" value="' + escapeHtml(currentEmail) + '" placeholder="name@example.com" style="width:240px;padding:12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1.05rem;background:rgba(255,255,255,0.08);color:#fff;text-align:center;">' +
             '</div>',
           background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
