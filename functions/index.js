@@ -428,6 +428,65 @@ exports.manageTrash = onRequest(
   }
 );
 
+// Move an event to the recycle bin. Goes through the Admin SDK rather than
+// a direct client write - database.rules.json only grants events/$eventId
+// a ".write" of "!newData.exists()" (a create-once guard on that exact
+// node), which a plain client-side db.ref(...).remove() cannot reliably
+// satisfy, so deletion needs a privileged path same as manageTrash above.
+exports.deleteEvent = onRequest(
+  { region: "us-central1", secrets: [adminPassword] },
+  async (req, res) => {
+    setCorsHeaders(res);
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    if (req.method !== "POST") {
+      res.status(405).json({ ok: false, error: "method_not_allowed" });
+      return;
+    }
+
+    if (!(await checkRateLimit("deleteEvent", req))) {
+      res.status(429).json({ ok: false, error: "rate_limited" });
+      return;
+    }
+
+    const { eventId, password } = req.body || {};
+    if (!eventId || typeof eventId !== "string") {
+      res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+
+    try {
+      const authorized = await isAuthorizedForEvent(eventId, password);
+      if (!authorized) {
+        res.status(403).json({ ok: false, error: "unauthorized" });
+        return;
+      }
+
+      const eventRef = admin.database().ref(`/events/${eventId}`);
+      const snapshot = await eventRef.once("value");
+      if (!snapshot.exists()) {
+        res.status(404).json({ ok: false, error: "not_found" });
+        return;
+      }
+
+      const eventData = snapshot.val();
+      eventData.deletedAt = new Date().toISOString();
+      await admin.database().ref(`/recyclebin/${eventId}`).set(eventData);
+      await Promise.all([
+        eventRef.remove(),
+        admin.database().ref(`/passwords/${eventId}`).remove(),
+        admin.database().ref(`/eventIndex/${eventId}`).remove(),
+      ]);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("deleteEvent error:", error);
+      res.status(500).json({ ok: false, error: "server_error" });
+    }
+  }
+);
+
 // Sub-admin login: takes a password, returns the matching eventId without
 // ever exposing the full password list to the client.
 exports.subAdminLogin = onRequest(

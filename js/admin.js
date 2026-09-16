@@ -24,6 +24,7 @@
   const RESET_MANAGER_PASSWORD_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/resetManagerPassword';
   const UPDATE_EVENT_MANAGER_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/updateEventManager';
   const GET_MANAGER_LEADS_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/getManagerLeads';
+  const DELETE_EVENT_API = 'https://us-central1-harelbar-ca7dd.cloudfunctions.net/deleteEvent';
 
   const loginScreen = document.getElementById('login-screen');
   const adminPanel = document.getElementById('admin-panel');
@@ -507,23 +508,26 @@
         cancelButtonText: 'ביטול',
         width: 420,
       }).then(function(result) {
-        if (result.isConfirmed) {
-          // Move to recycle bin instead of deleting
-          db.ref('events/' + evId).once('value', function(snap) {
-            var eventData = snap.val();
-            if (!eventData) return;
-            db.ref('recyclebin/' + evId).set(eventData).then(function() {
-              return db.ref('recyclebin/' + evId + '/deletedAt').set(new Date().toISOString());
-            }).then(function() {
-              return deleteEvent(evId);
-            }).then(function() {
+        if (!result.isConfirmed) return;
+        // Move to recycle bin - goes through the deleteEvent Cloud Function
+        // (Admin SDK) rather than a direct client write, since the database
+        // rules only allow a client to create an event at this path, not
+        // remove one.
+        getAdminCredential().then(function(delPassword) {
+          if (!delPassword) return;
+          return fetch(DELETE_EVENT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventId: evId, password: delPassword })
+          }).then(function(res) { return res.json().catch(function() { return {}; }); })
+            .then(function(data) {
+              if (!data || !data.ok) throw new Error(data && data.error);
               loadEvents();
-            }).catch(function(err) {
-              console.error('Delete event failed:', err);
-              Swal.fire({ text: 'מחיקת האירוע נכשלה, נסו שוב', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
             });
-          });
-        }
+        }).catch(function(err) {
+          console.error('Delete event failed:', err);
+          Swal.fire({ text: 'מחיקת האירוע נכשלה, נסו שוב', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+        });
       });
       return;
     }
