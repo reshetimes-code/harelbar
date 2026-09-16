@@ -190,21 +190,19 @@ exports.onNewBlessing = onValueCreated(
       return;
     }
 
-    // Content is OK - check if auto mode.
-    // Photos ALWAYS require manual human review, even in auto mode - an AI check
-    // can't be trusted alone to catch manipulated/fabricated photos, so every photo
-    // still waits for a person to look at it before it can reach the screen.
-    const hasPhoto = typeof blessing.photoDataUrl === "string" && blessing.photoDataUrl.length > 0;
-    const isAutoMode = meta.autoMode === true && !hasPhoto;
+    // Content is OK - check if auto mode. In auto mode the AI content check
+    // above (including its image analysis) is trusted for photos too, so a
+    // photo blessing no longer waits on a human when auto mode is on.
+    const isAutoMode = meta.autoMode === true;
 
     if (isAutoMode) {
-      // Auto mode: approve directly, no email (text-only blessings only)
+      // Auto mode: approve directly, no email
       await admin.database().ref(`/events/${eventId}/blessings/${blessingId}/status`).set("approved");
       console.log("Auto-approved blessing (auto mode):", eventId, blessingId);
       return;
     }
 
-    // Manual mode (or a photo was attached): set pending and send approval email
+    // Manual mode: set pending and send approval email
     await admin.database().ref(`/events/${eventId}/blessings/${blessingId}/status`).set("pending");
 
     const approveUrl = `https://approvblessing-ayhgolerzq-uc.a.run.app?event=${eventId}&id=${blessingId}&action=approve&password=${encodeURIComponent(adminPassword.value())}`;
