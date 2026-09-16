@@ -461,11 +461,16 @@ exports.subAdminLogin = onRequest(
       try {
         const managersSnap = await admin.database().ref("/managers").once("value");
         const managers = managersSnap.val() || {};
-        // Accept either the account's username/email or its display name -
-        // friendlier for a manager who doesn't remember which one they used.
+        // Accept the account's username, its separate email field (case-
+        // insensitive, since emails get typed with mixed case), or its
+        // display name - friendlier for a manager who doesn't remember
+        // which one they used.
+        const loweredUsername = username.trim().toLowerCase();
         const managerId = Object.keys(managers).find(
           (id) =>
-            (managers[id].username === username || managers[id].name === username) &&
+            (managers[id].username === username ||
+              managers[id].name === username ||
+              (managers[id].email && managers[id].email.toLowerCase() === loweredUsername)) &&
             String(managers[id].password) === password
         );
         if (!managerId) {
@@ -887,12 +892,14 @@ exports.createManagerEvent = onRequest(
         meta.notifyEmail = String(notifyEmail).slice(0, 199);
       } else {
         // Default the new event's notification email to the manager's own
-        // login identifier when it's an email address (e.g. self-signed-up
-        // managers, whose username IS their email) - editable per-event later.
-        const managerUsernameSnap = await admin.database().ref(`/managers/${managerId}/username`).once("value");
-        const managerUsername = managerUsernameSnap.val();
-        if (typeof managerUsername === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(managerUsername)) {
-          meta.notifyEmail = managerUsername.slice(0, 199);
+        // email (or, for self-signed-up managers with no separate email
+        // field, their username - which IS their email there) - editable
+        // per-event later via the "notification email" button.
+        const managerSnap = await admin.database().ref(`/managers/${managerId}`).once("value");
+        const managerData = managerSnap.val() || {};
+        const candidate = managerData.email || managerData.username;
+        if (typeof candidate === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate)) {
+          meta.notifyEmail = candidate.slice(0, 199);
         }
       }
 
@@ -929,14 +936,19 @@ exports.createEventManager = onRequest(
       return;
     }
 
-    const { password, username, name, managerPassword } = req.body || {};
+    const { password, username, name, email, managerPassword } = req.body || {};
     if (password !== adminPassword.value()) {
       res.status(403).json({ ok: false, error: "unauthorized" });
       return;
     }
     const cleanUsername = typeof username === "string" ? username.trim() : "";
+    const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (!cleanUsername || cleanUsername.length > 50 || !managerPassword || typeof managerPassword !== "string" || managerPassword.length < 1 || managerPassword.length > 40) {
       res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+    if (cleanEmail && (cleanEmail.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
+      res.status(400).json({ ok: false, error: "invalid_email" });
       return;
     }
 
@@ -949,12 +961,14 @@ exports.createEventManager = onRequest(
         return;
       }
       const managerId = generateManagerId();
-      await admin.database().ref(`/managers/${managerId}`).set({
+      const managerData = {
         username: cleanUsername,
         name: (typeof name === "string" && name.trim()) ? name.trim().slice(0, 99) : cleanUsername,
         password: managerPassword,
         createdAt: new Date().toISOString(),
-      });
+      };
+      if (cleanEmail) managerData.email = cleanEmail;
+      await admin.database().ref(`/managers/${managerId}`).set(managerData);
       res.json({ ok: true, managerId });
     } catch (error) {
       console.error("createEventManager error:", error);
@@ -1068,6 +1082,7 @@ exports.getEventManagers = onRequest(
           id,
           username: managersData[id].username,
           name: managersData[id].name || managersData[id].username,
+          email: managersData[id].email || "",
           createdAt: managersData[id].createdAt || "",
           // Only exposed to an already-authenticated main admin, same as how
           // getEvents merges in each event's sub-admin password - lets the
@@ -1187,15 +1202,20 @@ exports.updateEventManager = onRequest(
       return;
     }
 
-    const { password, managerId, username, name } = req.body || {};
+    const { password, managerId, username, name, email } = req.body || {};
     if (password !== adminPassword.value()) {
       res.status(403).json({ ok: false, error: "unauthorized" });
       return;
     }
     const cleanUsername = typeof username === "string" ? username.trim() : "";
     const cleanName = typeof name === "string" ? name.trim() : "";
+    const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
     if (!managerId || typeof managerId !== "string" || !cleanUsername || cleanUsername.length > 50 || !cleanName || cleanName.length > 99) {
       res.status(400).json({ ok: false, error: "invalid_request" });
+      return;
+    }
+    if (cleanEmail && (cleanEmail.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail))) {
+      res.status(400).json({ ok: false, error: "invalid_email" });
       return;
     }
 
@@ -1215,7 +1235,7 @@ exports.updateEventManager = onRequest(
         return;
       }
 
-      await managerRef.update({ username: cleanUsername, name: cleanName });
+      await managerRef.update({ username: cleanUsername, name: cleanName, email: cleanEmail || null });
       res.json({ ok: true });
     } catch (error) {
       console.error("updateEventManager error:", error);

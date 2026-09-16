@@ -685,7 +685,7 @@
           '<td style="text-align:left;">' +
             '<div style="display:flex;gap:6px;justify-content:flex-end;align-items:center;">' +
               '<button class="manager-login-as-btn" data-manager-id="' + mgr.id + '" data-name="' + escapeHtml(mgr.name || '') + '" data-password="' + escapeHtml(mgr.password || '') + '" title="כניסה לחשבון המנהל" style="background:none;border:1px solid rgba(184,149,62,0.4);color:var(--gold-light);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔓</button>' +
-              '<button class="manager-edit-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" data-name="' + escapeHtml(mgr.name || '') + '" title="עריכת מנהל" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">✏️</button>' +
+              '<button class="manager-edit-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" data-name="' + escapeHtml(mgr.name || '') + '" data-email="' + escapeHtml(mgr.email || '') + '" title="עריכת מנהל" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">✏️</button>' +
               '<button class="manager-reset-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="איפוס סיסמה" style="background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔑</button>' +
               '<button class="manager-delete-btn" data-manager-id="' + mgr.id + '" data-username="' + escapeHtml(mgr.username || '') + '" title="מחיקת מנהל" style="background:none;border:1px solid rgba(229,85,85,0.3);color:#e55;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.8rem;">🗑</button>' +
               '<span class="manager-header-row" data-manager-id="' + mgr.id + '" style="cursor:pointer;display:inline-flex;">' +
@@ -760,13 +760,16 @@
         // name/username can come from the public sign-up form.
         var eUsername = escapeHtml(editBtn.dataset.username).replace(/"/g, '&quot;');
         var eName = escapeHtml(editBtn.dataset.name).replace(/"/g, '&quot;');
+        var eEmail = escapeHtml(editBtn.dataset.email || '').replace(/"/g, '&quot;');
         Swal.fire({
           html: '<div dir="rtl" style="text-align:right;">' +
             '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.2rem;margin:0 0 16px;text-align:center;">עריכת מנהל אירוע</h2>' +
             '<label style="color:var(--text-muted);font-size:0.85rem;">שם מנהל האירוע</label>' +
             '<input type="text" id="swal-edit-mgr-name" value="' + eName + '" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
-            '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש / אימייל</label>' +
-            '<input type="text" id="swal-edit-mgr-username" value="' + eUsername + '" dir="ltr" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+            '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש</label>' +
+            '<input type="text" id="swal-edit-mgr-username" value="' + eUsername + '" dir="ltr" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+            '<label style="color:var(--text-muted);font-size:0.85rem;">אימייל</label>' +
+            '<input type="email" id="swal-edit-mgr-email" value="' + eEmail + '" dir="ltr" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
             '</div>',
           background: 'linear-gradient(180deg, #0c1425 0%, #111c32 100%)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -779,8 +782,13 @@
           preConfirm: function() {
             var newName = document.getElementById('swal-edit-mgr-name').value.trim();
             var newUsername = document.getElementById('swal-edit-mgr-username').value.trim();
+            var newEmail = document.getElementById('swal-edit-mgr-email').value.trim();
             if (!newName || !newUsername) {
               Swal.showValidationMessage('נא למלא שם ושם משתמש');
+              return false;
+            }
+            if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+              Swal.showValidationMessage('כתובת מייל לא תקינה');
               return false;
             }
             return fetch(UPDATE_EVENT_MANAGER_API, {
@@ -790,12 +798,15 @@
                 password: sessionStorage.getItem('admin_access_password'),
                 managerId: eMgrId,
                 name: newName,
-                username: newUsername
+                username: newUsername,
+                email: newEmail
               })
             }).then(function(res) { return res.json().catch(function() { return {}; }); })
               .then(function(data) {
                 if (!data || !data.ok) {
-                  Swal.showValidationMessage(data && data.error === 'username_taken' ? 'שם המשתמש כבר תפוס' : 'שגיאה בעדכון הפרטים');
+                  var msg = data && data.error === 'username_taken' ? 'שם המשתמש כבר תפוס' :
+                    data && data.error === 'invalid_email' ? 'כתובת מייל לא תקינה' : 'שגיאה בעדכון הפרטים';
+                  Swal.showValidationMessage(msg);
                   return false;
                 }
                 return true;
@@ -874,8 +885,10 @@
           '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.3rem;margin:0 0 16px;text-align:center;">מנהל אירוע חדש</h2>' +
           '<label style="color:var(--text-muted);font-size:0.85rem;">שם מנהל אירוע</label>' +
           '<input type="text" id="swal-mgr-name" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
-          '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש / אימייל</label>' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש</label>' +
           '<input type="text" id="swal-mgr-username" dir="ltr" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">אימייל</label>' +
+          '<input type="email" id="swal-mgr-email" dir="ltr" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
           '<label style="color:var(--text-muted);font-size:0.85rem;">סיסמה</label>' +
           '<input type="text" id="swal-mgr-password" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
           '</div>',
@@ -889,12 +902,17 @@
         preConfirm: function() {
           var name = document.getElementById('swal-mgr-name').value.trim();
           var username = document.getElementById('swal-mgr-username').value.trim();
+          var email = document.getElementById('swal-mgr-email').value.trim();
           var pwd = document.getElementById('swal-mgr-password').value.trim();
           if (!username || !pwd) {
             Swal.showValidationMessage('נא למלא שם משתמש וסיסמה');
             return false;
           }
-          return { name: name, username: username, password: pwd };
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            Swal.showValidationMessage('כתובת מייל לא תקינה');
+            return false;
+          }
+          return { name: name, username: username, email: email, password: pwd };
         }
       }).then(function(result) {
         if (!result.isConfirmed) return;
@@ -905,6 +923,7 @@
             password: sessionStorage.getItem('admin_access_password'),
             username: result.value.username,
             name: result.value.name,
+            email: result.value.email,
             managerPassword: result.value.password
           })
         }).then(function(res) { return res.json().catch(function() { return {}; }); })
@@ -913,6 +932,8 @@
               loadManagers();
             } else if (data && data.error === 'username_taken') {
               Swal.fire({ text: 'שם המשתמש כבר תפוס', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            } else if (data && data.error === 'invalid_email') {
+              Swal.fire({ text: 'כתובת המייל לא תקינה', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
             } else {
               Swal.fire({ text: 'שגיאה ביצירת מנהל האירוע', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
             }
