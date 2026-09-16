@@ -1499,7 +1499,7 @@
       var btn = e.target.closest('.dashboard-screen-image-delete');
       if (!btn) return;
       var imageId = btn.getAttribute('data-id');
-      var password = sessionStorage.getItem('admin_access_password');
+      var password = await getAdminCredential();
       if (!password) return;
       btn.disabled = true;
       btn.textContent = 'מוחק...';
@@ -1710,13 +1710,12 @@
     if (approveBtn && currentEventId) {
       var id = approveBtn.dataset.id;
       var approveEventId = currentEventId;
-      var approvePassword = sessionStorage.getItem('admin_access_password');
-      if (approvePassword) {
-        fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(approvePassword))
-          .catch(function() {
-            showScreenImageError('אישור הברכה נכשל, נסו שוב');
-          });
-      }
+      getAdminCredential().then(function(approvePassword) {
+        if (!approvePassword) return;
+        return fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(approvePassword));
+      }).catch(function() {
+        showScreenImageError('אישור הברכה נכשל, נסו שוב');
+      });
       return;
     }
 
@@ -1761,17 +1760,18 @@
   // writing a `status` field, and a previously-approved blessing needs that
   // status put back or it'll come back stuck in "AI checking" limbo.
   function callManageTrashApi(action, id) {
-    var password = sessionStorage.getItem('admin_access_password');
-    if (!password) return Promise.reject(new Error('no_password'));
-    return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
-      '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
-      '&password=' + encodeURIComponent(password))
-      .then(function(res) {
-        return res.json().catch(function() { return {}; }).then(function(data) {
-          if (!res.ok || data.ok === false) {
-            throw new Error(data.error || 'request_failed');
-          }
-          return data;
+    return getAdminCredential().then(function(password) {
+      if (!password) return Promise.reject(new Error('no_password'));
+      return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
+        '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
+        '&password=' + encodeURIComponent(password))
+        .then(function(res) {
+          return res.json().catch(function() { return {}; }).then(function(data) {
+            if (!res.ok || data.ok === false) {
+              throw new Error(data.error || 'request_failed');
+            }
+            return data;
+          });
         });
       });
   }
@@ -1977,29 +1977,22 @@
       showCancelButton: true,
       cancelButtonText: 'ביטול',
       width: 380,
-      showLoaderOnConfirm: true,
       preConfirm: function() {
+        // No network pre-check here on purpose - this used to call
+        // subAdminLogin, but that only recognizes the main admin password or
+        // an event's own per-event password, never a manager's login
+        // password, so it always rejected a manager typing their own
+        // (correct) password. The actual action this unlocks (approve,
+        // trash, screen images) does its own server-side authorization via
+        // isAuthorizedForEvent, which does accept the event owner's manager
+        // password - so we just take whatever was typed and let that be the
+        // real check.
         var pwd = document.getElementById('screen-images-password').value.trim();
         if (!pwd) {
           Swal.showValidationMessage('נא להזין סיסמה');
           return false;
         }
-        return fetch(SUB_ADMIN_LOGIN_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd })
-        }).then(function(res) {
-          return res.json().catch(function() { return {}; });
-        }).then(function(data) {
-          if (!data || !data.ok) {
-            Swal.showValidationMessage('סיסמה שגויה');
-            return false;
-          }
-          return pwd;
-        }).catch(function() {
-          Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
-          return false;
-        });
+        return pwd;
       },
       didOpen: function() {
         document.getElementById('screen-images-password').focus();
@@ -2126,7 +2119,7 @@
   }
 
   async function openScreenImagesManager(eventId) {
-    var password = sessionStorage.getItem('admin_access_password');
+    var password = await getAdminCredential();
     if (!password) return;
 
     Swal.fire({
