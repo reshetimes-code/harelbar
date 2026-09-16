@@ -511,12 +511,17 @@
           // Move to recycle bin instead of deleting
           db.ref('events/' + evId).once('value', function(snap) {
             var eventData = snap.val();
-            if (eventData) {
-              db.ref('recyclebin/' + evId).set(eventData).then(function() {
-                db.ref('recyclebin/' + evId + '/deletedAt').set(new Date().toISOString());
-                deleteEvent(evId);
-              });
-            }
+            if (!eventData) return;
+            db.ref('recyclebin/' + evId).set(eventData).then(function() {
+              return db.ref('recyclebin/' + evId + '/deletedAt').set(new Date().toISOString());
+            }).then(function() {
+              return deleteEvent(evId);
+            }).then(function() {
+              loadEvents();
+            }).catch(function(err) {
+              console.error('Delete event failed:', err);
+              Swal.fire({ text: 'מחיקת האירוע נכשלה, נסו שוב', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            });
           });
         }
       });
