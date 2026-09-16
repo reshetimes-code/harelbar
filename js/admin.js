@@ -513,21 +513,19 @@
         // (Admin SDK) rather than a direct client write, since the database
         // rules only allow a client to create an event at this path, not
         // remove one.
-        getAdminCredential().then(function(delPassword) {
-          if (!delPassword) return;
-          return fetch(DELETE_EVENT_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eventId: evId, password: delPassword })
-          }).then(function(res) { return res.json().catch(function() { return {}; }); })
-            .then(function(data) {
-              if (!data || !data.ok) throw new Error(data && data.error);
-              loadEvents();
-            });
-        }).catch(function(err) {
-          console.error('Delete event failed:', err);
-          Swal.fire({ text: 'מחיקת האירוע נכשלה, נסו שוב', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
-        });
+        var delPassword = localStorage.getItem('admin_access_password');
+        fetch(DELETE_EVENT_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId: evId, password: delPassword, managerId: isManager ? managerId : undefined })
+        }).then(function(res) { return res.json().catch(function() { return {}; }); })
+          .then(function(data) {
+            if (!data || !data.ok) throw new Error(data && data.error);
+            loadEvents();
+          }).catch(function(err) {
+            console.error('Delete event failed:', err);
+            Swal.fire({ text: 'מחיקת האירוע נכשלה: ' + (err && err.message || 'שגיאה'), icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+          });
       });
       return;
     }
@@ -1475,7 +1473,7 @@
     if (!password) return;
 
     try {
-      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password });
+      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password, managerId: isManager ? managerId : undefined });
       var images = result.images || [];
       if (countEl) countEl.textContent = images.length;
 
@@ -1508,17 +1506,17 @@
       var btn = e.target.closest('.dashboard-screen-image-delete');
       if (!btn) return;
       var imageId = btn.getAttribute('data-id');
-      var password = await getAdminCredential();
+      var password = localStorage.getItem('admin_access_password');
       if (!password) return;
       btn.disabled = true;
       btn.textContent = 'מוחק...';
       try {
-        await callScreenImagesApi({ action: 'delete', eventId: currentEventId, password: password, imageId: imageId });
+        await callScreenImagesApi({ action: 'delete', eventId: currentEventId, password: password, managerId: isManager ? managerId : undefined, imageId: imageId });
         loadDashboardScreenImages(currentEventId);
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'מחק';
-        showScreenImageError('מחיקת התמונה נכשלה');
+        showScreenImageError('מחיקת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
       }
     });
   }
@@ -1719,12 +1717,16 @@
     if (approveBtn && currentEventId) {
       var id = approveBtn.dataset.id;
       var approveEventId = currentEventId;
-      getAdminCredential().then(function(approvePassword) {
-        if (!approvePassword) return;
-        return fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(approvePassword));
-      }).catch(function() {
-        showScreenImageError('אישור הברכה נכשל, נסו שוב');
-      });
+      var approvePassword = localStorage.getItem('admin_access_password');
+      if (approvePassword) {
+        var approveUrl = APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(approvePassword) +
+          (isManager ? '&managerId=' + encodeURIComponent(managerId) : '');
+        fetch(approveUrl).then(function(res) {
+          if (!res.ok) showScreenImageError('אישור הברכה נכשל (שגיאה ' + res.status + '), נסו שוב');
+        }).catch(function() {
+          showScreenImageError('אישור הברכה נכשל, נסו שוב');
+        });
+      }
       return;
     }
 
@@ -1769,18 +1771,18 @@
   // writing a `status` field, and a previously-approved blessing needs that
   // status put back or it'll come back stuck in "AI checking" limbo.
   function callManageTrashApi(action, id) {
-    return getAdminCredential().then(function(password) {
-      if (!password) return Promise.reject(new Error('no_password'));
-      return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
-        '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
-        '&password=' + encodeURIComponent(password))
-        .then(function(res) {
-          return res.json().catch(function() { return {}; }).then(function(data) {
-            if (!res.ok || data.ok === false) {
-              throw new Error(data.error || 'request_failed');
-            }
-            return data;
-          });
+    var password = localStorage.getItem('admin_access_password');
+    if (!password) return Promise.reject(new Error('no_password'));
+    return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
+      '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
+      '&password=' + encodeURIComponent(password) +
+      (isManager ? '&managerId=' + encodeURIComponent(managerId) : ''))
+      .then(function(res) {
+        return res.json().catch(function() { return {}; }).then(function(data) {
+          if (!res.ok || data.ok === false) {
+            throw new Error(data.error || 'request_failed');
+          }
+          return data;
         });
       });
   }
@@ -2128,7 +2130,7 @@
   }
 
   async function openScreenImagesManager(eventId) {
-    var password = await getAdminCredential();
+    var password = localStorage.getItem('admin_access_password');
     if (!password) return;
 
     Swal.fire({
@@ -2147,11 +2149,13 @@
 
     var images = [];
     try {
-      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password });
+      var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password, managerId: isManager ? managerId : undefined });
       images = result.images || [];
     } catch (err) {
-      localStorage.removeItem('admin_access_password');
-      await showScreenImageError('אין הרשאה או שלא ניתן לטעון את התמונות');
+      // Never clear a cached password just because one call failed - it may
+      // be a transient network hiccup, and wiping it forces a re-login for
+      // no reason. Show the real server reason so this is diagnosable.
+      await showScreenImageError('שגיאה בטעינת התמונות: ' + (err && (err.code || err.message) || 'לא ידועה') + ' - נסו שוב');
       return;
     }
 
@@ -2243,6 +2247,7 @@
                 action: 'upload',
                 eventId: eventId,
                 password: password,
+                managerId: isManager ? managerId : undefined,
                 dataUrl: dataUrl,
                 fileName: file.name
               });
@@ -2260,7 +2265,7 @@
             if (err.code === 'image_too_large') {
               await showImageTooLargeAlert();
             } else {
-              await showScreenImageError('העלאת התמונה נכשלה');
+              await showScreenImageError('העלאת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
             }
           } finally {
             fileInput.disabled = false;
@@ -2279,13 +2284,14 @@
               action: 'delete',
               eventId: eventId,
               password: password,
+              managerId: isManager ? managerId : undefined,
               imageId: imageId
             });
             refresh(result.images || [], 'התמונה נמחקה בהצלחה');
           } catch (err) {
             btn.disabled = false;
             btn.textContent = 'מחק';
-            await showScreenImageError('מחיקת התמונה נכשלה');
+            await showScreenImageError('מחיקת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
           }
         });
       }

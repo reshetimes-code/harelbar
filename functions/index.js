@@ -277,7 +277,7 @@ exports.screenImages = onRequest(
       return;
     }
 
-    const { action, eventId, password, dataUrl, imageId } = req.body || {};
+    const { action, eventId, password, dataUrl, imageId, managerId } = req.body || {};
 
     if (!eventId || !/^[a-z0-9]{4,20}$/.test(eventId) || !["list", "upload", "delete"].includes(action)) {
       res.status(400).json({ ok: false, error: "invalid_request" });
@@ -285,7 +285,7 @@ exports.screenImages = onRequest(
     }
 
     try {
-      const authorized = await isAuthorizedForEvent(eventId, password);
+      const authorized = await isAuthorizedForEvent(eventId, password, managerId);
       if (!authorized) {
         res.status(403).json({ ok: false, error: "unauthorized" });
         return;
@@ -338,7 +338,7 @@ exports.approvBlessing = onRequest(
   { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
-    const { event: eventId, id, action, password } = req.query;
+    const { event: eventId, id, action, password, managerId } = req.query;
 
     if (!eventId || !id || !["approve", "reject"].includes(action)) {
       res.status(400).send("Invalid request");
@@ -351,7 +351,7 @@ exports.approvBlessing = onRequest(
     }
 
     try {
-      const authorized = await isAuthorizedForEvent(eventId, password);
+      const authorized = await isAuthorizedForEvent(eventId, password, managerId);
       if (!authorized) {
         res.status(403).send(htmlResponse("אין הרשאה", "הקישור לא תקין או שהסיסמה שגויה", "#e55"));
         return;
@@ -388,7 +388,7 @@ exports.manageTrash = onRequest(
   { region: "us-central1", secrets: [adminPassword] },
   async (req, res) => {
     setCorsHeaders(res);
-    const { event: eventId, id, action, password } = req.query;
+    const { event: eventId, id, action, password, managerId } = req.query;
 
     if (!eventId || !id || !["restore", "purge"].includes(action)) {
       res.status(400).json({ ok: false, error: "invalid_request" });
@@ -401,7 +401,7 @@ exports.manageTrash = onRequest(
     }
 
     try {
-      const authorized = await isAuthorizedForEvent(eventId, password);
+      const authorized = await isAuthorizedForEvent(eventId, password, managerId);
       if (!authorized) {
         res.status(403).json({ ok: false, error: "unauthorized" });
         return;
@@ -451,14 +451,14 @@ exports.deleteEvent = onRequest(
       return;
     }
 
-    const { eventId, password } = req.body || {};
+    const { eventId, password, managerId } = req.body || {};
     if (!eventId || typeof eventId !== "string") {
       res.status(400).json({ ok: false, error: "invalid_request" });
       return;
     }
 
     try {
-      const authorized = await isAuthorizedForEvent(eventId, password);
+      const authorized = await isAuthorizedForEvent(eventId, password, managerId);
       if (!authorized) {
         res.status(403).json({ ok: false, error: "unauthorized" });
         return;
@@ -737,22 +737,25 @@ function setCorsHeaders(res) {
   res.set("Access-Control-Allow-Headers", "Content-Type");
 }
 
-async function isAuthorizedForEvent(eventId, password) {
+async function isAuthorizedForEvent(eventId, password, managerId) {
   if (!password || typeof password !== "string") return false;
   if (password === adminPassword.value()) return true;
 
   const pwdSnap = await admin.database().ref(`/passwords/${eventId}`).once("value");
   if (String(pwdSnap.val() || "") === password) return true;
 
-  // Also accept the event's own manager's login password - a manager should
-  // be able to manage their own events (approve blessings, trash, screen
-  // images) with the same password they log in with, without needing the
-  // separate per-event sub-admin password too.
-  const ownerSnap = await admin.database().ref(`/events/${eventId}/meta/ownerId`).once("value");
-  const ownerId = ownerSnap.val();
-  if (ownerId) {
-    const managerPwdSnap = await admin.database().ref(`/managers/${ownerId}/password`).once("value");
-    if (String(managerPwdSnap.val() || "") === password) return true;
+  // Also accept the event's own manager, authenticated via the exact same
+  // managerId+password check createManagerEvent/getManagerEvents already
+  // use (isAuthorizedManager) - a manager should be able to manage their
+  // own events (approve blessings, trash, screen images) with the same
+  // password they log in with, without needing the separate per-event
+  // sub-admin password too.
+  if (managerId && typeof managerId === "string") {
+    const [managerOk, ownerSnap] = await Promise.all([
+      isAuthorizedManager(managerId, password),
+      admin.database().ref(`/events/${eventId}/meta/ownerId`).once("value"),
+    ]);
+    if (managerOk && ownerSnap.val() === managerId) return true;
   }
   return false;
 }
