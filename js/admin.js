@@ -258,7 +258,7 @@
     if (managerNewEventBtn) managerNewEventBtn.style.display = isManager ? '' : 'none';
     if (managersSection) managersSection.style.display = isMainAdmin ? 'block' : 'none';
     var eventsViewTitle = document.getElementById('events-view-title');
-    if (eventsViewTitle) eventsViewTitle.textContent = (isManager && managerName) ? ('פאנל ניהול - ' + managerName) : 'פאנל ניהול';
+    if (eventsViewTitle) eventsViewTitle.textContent = (isManager && managerName) ? ('פאנל ניהול - ' + managerName) : (isMainAdmin ? 'פאנל ניהול - סופר אדמין' : 'פאנל ניהול');
   }
 
   // ===== LEADS VIEW =====
