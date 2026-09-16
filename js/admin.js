@@ -965,6 +965,7 @@
         showCancelButton: true,
         cancelButtonText: 'ביטול',
         width: 380,
+        showLoaderOnConfirm: true,
         preConfirm: function() {
           var celebrantName = document.getElementById('swal-ev-celebrant').value.trim();
           var organizerName = document.getElementById('swal-ev-organizer').value.trim();
@@ -974,25 +975,40 @@
             Swal.showValidationMessage('נא למלא את כל השדות');
             return false;
           }
-          return { celebrantName: celebrantName, organizerName: organizerName, organizerPhone: organizerPhone, eventDate: eventDate };
+          return fetch(CREATE_MANAGER_EVENT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              managerId: managerId,
+              password: sessionStorage.getItem('admin_access_password'),
+              celebrantName: celebrantName,
+              organizerName: organizerName,
+              organizerPhone: organizerPhone,
+              eventDate: eventDate
+            })
+          }).then(function(res) { return res.json().catch(function() { return {}; }); })
+            .then(function(data) {
+              if (!data || !data.ok) {
+                Swal.showValidationMessage('שגיאה ביצירת האירוע');
+                return false;
+              }
+              return true;
+            }).catch(function() {
+              Swal.showValidationMessage('שגיאת תקשורת, נסו שוב');
+              return false;
+            });
         }
       }).then(function(result) {
         if (!result.isConfirmed) return;
-        fetch(CREATE_MANAGER_EVENT_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({
-            managerId: managerId,
-            password: sessionStorage.getItem('admin_access_password')
-          }, result.value))
-        }).then(function(res) { return res.json().catch(function() { return {}; }); })
-          .then(function(data) {
-            if (data && data.ok) {
-              loadEvents();
-            } else {
-              Swal.fire({ text: 'שגיאה ביצירת האירוע', icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
-            }
-          });
+        loadEvents();
+        Swal.fire({
+          text: 'אירוע חדש הוקם',
+          icon: 'success',
+          timer: 1600,
+          showConfirmButton: false,
+          background: '#0c1425',
+          color: '#fff'
+        });
       });
     });
   }
