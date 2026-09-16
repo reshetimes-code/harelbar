@@ -1710,12 +1710,13 @@
     if (approveBtn && currentEventId) {
       var id = approveBtn.dataset.id;
       var approveEventId = currentEventId;
-      getAdminCredential().then(function(password) {
-        if (!password) return;
-        return fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(password));
-      }).catch(function() {
-        showScreenImageError('אישור הברכה נכשל, נסו שוב');
-      });
+      var approvePassword = sessionStorage.getItem('admin_access_password');
+      if (approvePassword) {
+        fetch(APPROVE_BLESSING_API + '?event=' + encodeURIComponent(approveEventId) + '&id=' + encodeURIComponent(id) + '&action=approve&password=' + encodeURIComponent(approvePassword))
+          .catch(function() {
+            showScreenImageError('אישור הברכה נכשל, נסו שוב');
+          });
+      }
       return;
     }
 
@@ -1760,20 +1761,19 @@
   // writing a `status` field, and a previously-approved blessing needs that
   // status put back or it'll come back stuck in "AI checking" limbo.
   function callManageTrashApi(action, id) {
-    return getAdminCredential().then(function(password) {
-      if (!password) return Promise.reject(new Error('no_password'));
-      return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
-        '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
-        '&password=' + encodeURIComponent(password))
-        .then(function(res) {
-          return res.json().catch(function() { return {}; }).then(function(data) {
-            if (!res.ok || data.ok === false) {
-              throw new Error(data.error || 'request_failed');
-            }
-            return data;
-          });
+    var password = sessionStorage.getItem('admin_access_password');
+    if (!password) return Promise.reject(new Error('no_password'));
+    return fetch(MANAGE_TRASH_API + '?event=' + encodeURIComponent(currentEventId) +
+      '&id=' + encodeURIComponent(id) + '&action=' + encodeURIComponent(action) +
+      '&password=' + encodeURIComponent(password))
+      .then(function(res) {
+        return res.json().catch(function() { return {}; }).then(function(data) {
+          if (!res.ok || data.ok === false) {
+            throw new Error(data.error || 'request_failed');
+          }
+          return data;
         });
-    });
+      });
   }
 
   function renderTrashModal(items) {
