@@ -312,18 +312,18 @@
           var data = result.value;
           clearRoleSession();
           if (data.role === 'manager') {
-            sessionStorage.setItem('manager_auth', 'true');
-            sessionStorage.setItem('manager_id', data.managerId);
-            sessionStorage.setItem('manager_name', data.name || '');
-            sessionStorage.setItem('admin_access_password', data.password);
+            localStorage.setItem('manager_auth', 'true');
+            localStorage.setItem('manager_id', data.managerId);
+            localStorage.setItem('manager_name', data.name || '');
+            localStorage.setItem('admin_access_password', data.password);
             window.location.href = 'admin.html';
           } else if (data.isMainAdmin) {
-            sessionStorage.setItem('admin_auth', 'true');
-            sessionStorage.setItem('admin_access_password', data.password);
+            localStorage.setItem('admin_auth', 'true');
+            localStorage.setItem('admin_access_password', data.password);
             window.location.href = 'admin.html';
           } else if (data.eventId) {
-            sessionStorage.setItem('sub_admin_event', data.eventId);
-            sessionStorage.setItem('admin_access_password', data.password);
+            localStorage.setItem('sub_admin_event', data.eventId);
+            localStorage.setItem('admin_access_password', data.password);
             window.location.href = 'admin.html?event=' + data.eventId;
           }
         });
@@ -335,11 +335,11 @@
     // can never combine with the new login (e.g. showing the super admin's
     // panel to someone who just logged in as an event manager).
     function clearRoleSession() {
-      sessionStorage.removeItem('admin_auth');
-      sessionStorage.removeItem('sub_admin_event');
-      sessionStorage.removeItem('manager_auth');
-      sessionStorage.removeItem('manager_id');
-      sessionStorage.removeItem('manager_name');
+      localStorage.removeItem('admin_auth');
+      localStorage.removeItem('sub_admin_event');
+      localStorage.removeItem('manager_auth');
+      localStorage.removeItem('manager_id');
+      localStorage.removeItem('manager_name');
     }
 
     // "פתח אירוע חדש" - offers a one-off private event (today's register.html
@@ -433,10 +433,10 @@
         if (!result.isConfirmed || !result.value) return;
         var data = result.value;
         clearRoleSession();
-        sessionStorage.setItem('manager_auth', 'true');
-        sessionStorage.setItem('manager_id', data.managerId);
-        sessionStorage.setItem('manager_name', data.name || '');
-        sessionStorage.setItem('admin_access_password', data.password);
+        localStorage.setItem('manager_auth', 'true');
+        localStorage.setItem('manager_id', data.managerId);
+        localStorage.setItem('manager_name', data.name || '');
+        localStorage.setItem('admin_access_password', data.password);
         window.location.href = 'admin.html';
       });
     }

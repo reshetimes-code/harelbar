@@ -54,11 +54,11 @@
   // login's data (e.g. a manager's password ending up in admin_access_password
   // while isMainAdmin is still true from before), showing the wrong panel.
   function clearRoleSession() {
-    sessionStorage.removeItem('admin_auth');
-    sessionStorage.removeItem('sub_admin_event');
-    sessionStorage.removeItem('manager_auth');
-    sessionStorage.removeItem('manager_id');
-    sessionStorage.removeItem('manager_name');
+    localStorage.removeItem('admin_auth');
+    localStorage.removeItem('sub_admin_event');
+    localStorage.removeItem('manager_auth');
+    localStorage.removeItem('manager_id');
+    localStorage.removeItem('manager_name');
     isMainAdmin = false;
     isManager = false;
     managerId = null;
@@ -68,19 +68,19 @@
   // Check URL param for sub-admin event
   var urlEvent = new URLSearchParams(window.location.search).get('event');
   if (urlEvent) {
-    sessionStorage.setItem('sub_admin_event', urlEvent);
+    localStorage.setItem('sub_admin_event', urlEvent);
   }
 
   // Check session
-  if (sessionStorage.getItem('admin_auth') === 'true') {
+  if (localStorage.getItem('admin_auth') === 'true') {
     isMainAdmin = true;
     showPanel();
-  } else if (sessionStorage.getItem('manager_auth') === 'true') {
+  } else if (localStorage.getItem('manager_auth') === 'true') {
     isManager = true;
-    managerId = sessionStorage.getItem('manager_id');
-    managerName = sessionStorage.getItem('manager_name') || '';
+    managerId = localStorage.getItem('manager_id');
+    managerName = localStorage.getItem('manager_name') || '';
     showPanel();
-  } else if (sessionStorage.getItem('sub_admin_event')) {
+  } else if (localStorage.getItem('sub_admin_event')) {
     isMainAdmin = false;
     showPanel();
   }
@@ -105,10 +105,10 @@
     }).then(function(data) {
       if (data && data.ok && data.role === 'manager') {
         clearRoleSession();
-        sessionStorage.setItem('manager_auth', 'true');
-        sessionStorage.setItem('manager_id', data.managerId);
-        sessionStorage.setItem('manager_name', data.name || uname);
-        sessionStorage.setItem('admin_access_password', pwd);
+        localStorage.setItem('manager_auth', 'true');
+        localStorage.setItem('manager_id', data.managerId);
+        localStorage.setItem('manager_name', data.name || uname);
+        localStorage.setItem('admin_access_password', pwd);
         isManager = true;
         managerId = data.managerId;
         managerName = data.name || uname;
@@ -116,15 +116,15 @@
         showPanel();
       } else if (data && data.ok && data.isMainAdmin) {
         clearRoleSession();
-        sessionStorage.setItem('admin_auth', 'true');
-        sessionStorage.setItem('admin_access_password', pwd);
+        localStorage.setItem('admin_auth', 'true');
+        localStorage.setItem('admin_access_password', pwd);
         isMainAdmin = true;
         loginError.classList.remove('show');
         showPanel();
       } else if (data && data.ok && data.eventId) {
         clearRoleSession();
-        sessionStorage.setItem('sub_admin_event', data.eventId);
-        sessionStorage.setItem('admin_access_password', pwd);
+        localStorage.setItem('sub_admin_event', data.eventId);
+        localStorage.setItem('admin_access_password', pwd);
         isMainAdmin = false;
         loginError.classList.remove('show');
         showPanel();
@@ -141,12 +141,12 @@
 
   // Logout
   logoutBtn.addEventListener('click', function() {
-    sessionStorage.removeItem('admin_auth');
-    sessionStorage.removeItem('sub_admin_event');
-    sessionStorage.removeItem('admin_access_password');
-    sessionStorage.removeItem('manager_auth');
-    sessionStorage.removeItem('manager_id');
-    sessionStorage.removeItem('manager_name');
+    localStorage.removeItem('admin_auth');
+    localStorage.removeItem('sub_admin_event');
+    localStorage.removeItem('admin_access_password');
+    localStorage.removeItem('manager_auth');
+    localStorage.removeItem('manager_id');
+    localStorage.removeItem('manager_name');
     isMainAdmin = false;
     isManager = false;
     managerId = null;
@@ -177,7 +177,7 @@
       }
     } else {
       // Sub-admin: go directly to their event
-      var subEventId = sessionStorage.getItem('sub_admin_event');
+      var subEventId = localStorage.getItem('sub_admin_event');
       if (subEventId) {
         showEventDetail(subEventId);
       }
@@ -278,8 +278,8 @@
     if (loader) loader.style.display = 'flex';
     var url = isManager ? GET_MANAGER_LEADS_API : GET_LEADS_API;
     var body = isManager
-      ? { managerId: managerId, password: sessionStorage.getItem('admin_access_password') }
-      : { password: sessionStorage.getItem('admin_access_password') };
+      ? { managerId: managerId, password: localStorage.getItem('admin_access_password') }
+      : { password: localStorage.getItem('admin_access_password') };
     fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -377,8 +377,8 @@
   function loadEvents() {
     var url = isManager ? GET_MANAGER_EVENTS_API : GET_EVENTS_API;
     var body = isManager
-      ? { managerId: managerId, password: sessionStorage.getItem('admin_access_password') }
-      : { password: sessionStorage.getItem('admin_access_password') };
+      ? { managerId: managerId, password: localStorage.getItem('admin_access_password') }
+      : { password: localStorage.getItem('admin_access_password') };
     fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -588,8 +588,8 @@
               background: '#0c1425',
               color: '#fff'
             }).then(function() {
-              sessionStorage.removeItem('admin_auth');
-              sessionStorage.removeItem('sub_admin_event');
+              localStorage.removeItem('admin_auth');
+              localStorage.removeItem('sub_admin_event');
               window.location.href = 'admin.html';
             });
           }
@@ -621,7 +621,7 @@
     fetch(GET_EVENT_MANAGERS_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password') })
+      body: JSON.stringify({ password: localStorage.getItem('admin_access_password') })
     }).then(function(res) {
       return res.json().catch(function() { return {}; });
     }).then(function(data) {
@@ -742,10 +742,10 @@
         var laPassword = loginAsBtn.dataset.password;
         showConfirm('כניסה כמנהל אירוע', 'להיכנס לפאנל של "' + laName + '"? תעבור/י לתצוגה שלו.', function() {
           clearRoleSession();
-          sessionStorage.setItem('manager_auth', 'true');
-          sessionStorage.setItem('manager_id', laMgrId);
-          sessionStorage.setItem('manager_name', laName);
-          sessionStorage.setItem('admin_access_password', laPassword);
+          localStorage.setItem('manager_auth', 'true');
+          localStorage.setItem('manager_id', laMgrId);
+          localStorage.setItem('manager_name', laName);
+          localStorage.setItem('admin_access_password', laPassword);
           window.location.href = 'admin.html';
         });
         return;
@@ -795,7 +795,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                password: sessionStorage.getItem('admin_access_password'),
+                password: localStorage.getItem('admin_access_password'),
                 managerId: eMgrId,
                 name: newName,
                 username: newUsername,
@@ -845,7 +845,7 @@
           fetch(RESET_MANAGER_PASSWORD_API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password'), managerId: rMgrId, newPassword: newPwd })
+            body: JSON.stringify({ password: localStorage.getItem('admin_access_password'), managerId: rMgrId, newPassword: newPwd })
           }).then(function(res) { return res.json().catch(function() { return {}; }); })
             .then(function(data) {
               if (data && data.ok) {
@@ -867,7 +867,7 @@
           fetch(DELETE_EVENT_MANAGER_API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: sessionStorage.getItem('admin_access_password'), managerId: dMgrId })
+            body: JSON.stringify({ password: localStorage.getItem('admin_access_password'), managerId: dMgrId })
           }).then(function(res) { return res.json().catch(function() { return {}; }); })
             .then(function() { loadManagers(); });
         });
@@ -920,7 +920,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            password: sessionStorage.getItem('admin_access_password'),
+            password: localStorage.getItem('admin_access_password'),
             username: result.value.username,
             name: result.value.name,
             email: result.value.email,
@@ -980,7 +980,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               managerId: managerId,
-              password: sessionStorage.getItem('admin_access_password'),
+              password: localStorage.getItem('admin_access_password'),
               celebrantName: celebrantName,
               organizerName: organizerName,
               organizerPhone: organizerPhone,
@@ -1113,8 +1113,8 @@
             if (newPwd && newPwd !== currentPwd) {
               callSetEventPassword(eventId, newPwd, callerPassword);
               Swal.fire({ text: 'הסיסמה עודכנה! מעביר למסך התחברות...', icon: 'success', timer: 2000, showConfirmButton: false, background: '#0c1425', color: '#fff' }).then(function() {
-                sessionStorage.removeItem('admin_auth');
-                sessionStorage.removeItem('sub_admin_event');
+                localStorage.removeItem('admin_auth');
+                localStorage.removeItem('sub_admin_event');
                 window.location.href = 'admin.html';
               });
             }
@@ -1265,9 +1265,9 @@
     // Logout from event + disconnect screen
     document.getElementById('logout-event-btn').onclick = function() {
       db.ref('events/' + eventId + '/screenControl/disconnect').set(true);
-      sessionStorage.removeItem('admin_auth');
-      sessionStorage.removeItem('sub_admin_event');
-      sessionStorage.removeItem('admin_access_password');
+      localStorage.removeItem('admin_auth');
+      localStorage.removeItem('sub_admin_event');
+      localStorage.removeItem('admin_access_password');
       window.location.href = '/';
     };
 
@@ -1462,7 +1462,7 @@
     var countEl = document.getElementById('dashboard-screen-images-count');
     if (!grid) return;
 
-    var password = sessionStorage.getItem('admin_access_password');
+    var password = localStorage.getItem('admin_access_password');
     if (!password) return;
 
     try {
@@ -1962,7 +1962,7 @@
   }
 
   function getAdminCredential() {
-    var saved = sessionStorage.getItem('admin_access_password');
+    var saved = localStorage.getItem('admin_access_password');
     if (saved) return Promise.resolve(saved);
 
     return Swal.fire({
@@ -1999,7 +1999,7 @@
       }
     }).then(function(result) {
       if (!result.isConfirmed) return null;
-      sessionStorage.setItem('admin_access_password', result.value);
+      localStorage.setItem('admin_access_password', result.value);
       return result.value;
     });
   }
@@ -2141,7 +2141,7 @@
       var result = await callScreenImagesApi({ action: 'list', eventId: eventId, password: password });
       images = result.images || [];
     } catch (err) {
-      sessionStorage.removeItem('admin_access_password');
+      localStorage.removeItem('admin_access_password');
       await showScreenImageError('אין הרשאה או שלא ניתן לטעון את התמונות');
       return;
     }
