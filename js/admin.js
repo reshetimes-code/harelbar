@@ -2166,6 +2166,12 @@
       showConfirmButton: false,
       showCloseButton: true,
       width: 520,
+      // The dashboard has its own small preview grid/count separate from
+      // this modal - refresh it on close (done button, X, or outside click)
+      // so an upload/delete made in here doesn't leave it stale.
+      didClose: function() {
+        loadDashboardScreenImages(eventId);
+      },
       didOpen: function() {
         var fileInput = document.getElementById('screen-images-file');
         var grid = document.getElementById('screen-images-grid');
