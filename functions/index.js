@@ -899,6 +899,9 @@ exports.createManagerEvent = onRequest(
         createdAt: new Date().toISOString(),
         status: "active",
         ownerId: managerId,
+        // Default to auto mode (AI approves text on its own, no manual
+        // review needed) - editable any time via the toggle in the panel.
+        autoMode: true,
       };
       if (notifyEmail) {
         meta.notifyEmail = String(notifyEmail).slice(0, 199);

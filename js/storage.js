@@ -32,6 +32,10 @@ function createEvent(meta) {
   let eventId = generateEventId();
   meta.createdAt = new Date().toISOString();
   meta.status = 'active';
+  // New events default to auto mode (AI approves text on its own, no manual
+  // review needed) - organizers who want to check every blessing themselves
+  // can switch to manual mode any time via the toggle in the event panel.
+  meta.autoMode = true;
   var subAdminPassword = generateEventPassword();
   return db.ref('events/' + eventId + '/meta').set(meta).then(function() {
     // Password lives only in the lightweight /passwords path (not readable
