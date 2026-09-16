@@ -51,7 +51,7 @@
             ".validate": "newData.hasChildren(['name', 'text', 'createdAt']) && !newData.hasChild('status') && !newData.hasChild('rejectReason')",
             "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 100" },
             "text": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 5000" },
-            "photoDataUrl": { ".validate": "newData.isString() && newData.val().length < 5000000 && newData.val().matches(/^data:image\\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+\\/]+=*$/)" },
+            "photoDataUrl": { ".validate": "newData.isString() && newData.val().length < 15000000 && newData.val().matches(/^data:image\\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+\\/]+=*$/)" },
             "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'rejected')" }
           }
         },

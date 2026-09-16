@@ -255,7 +255,7 @@ function deleteLead(leadId) {
 function encodeJpegWithBudget(canvas, opts) {
   opts = opts || {};
   var quality = opts.quality || 0.87;
-  var maxChars = opts.maxChars || 4500000; // margin under the 5,000,000 DB limit
+  var maxChars = opts.maxChars || 14000000; // margin under the 15,000,000 DB limit
   var minDimension = opts.minDimension || 400;
 
   var w = canvas.width, h = canvas.height;
