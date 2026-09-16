@@ -257,6 +257,8 @@
     if (sectionNewEventLink) sectionNewEventLink.style.display = isManager ? 'none' : '';
     if (managerNewEventBtn) managerNewEventBtn.style.display = isManager ? '' : 'none';
     if (managersSection) managersSection.style.display = isMainAdmin ? 'block' : 'none';
+    var eventsViewTitle = document.getElementById('events-view-title');
+    if (eventsViewTitle) eventsViewTitle.textContent = (isManager && managerName) ? ('פאנל ניהול - ' + managerName) : 'פאנל ניהול';
   }
 
   // ===== LEADS VIEW =====
@@ -987,6 +989,12 @@
     if (backBtn) backBtn.style.display = (isMainAdmin || isManager) ? 'inline-flex' : 'none';
     var sideBackBtn = document.getElementById('back-to-events-side');
     if (sideBackBtn) sideBackBtn.style.display = (isMainAdmin || isManager) ? 'inline-flex' : 'none';
+
+    // An event manager already has full access to every event they own via
+    // their own login - the per-event sub-admin password is only meaningful
+    // for private events with no manager account, so hide it for managers.
+    var changePwdBtn = document.getElementById('change-pwd-btn');
+    if (changePwdBtn) changePwdBtn.style.display = isManager ? 'none' : '';
 
     // Load event meta
     getEventMeta(eventId).then(function(meta) {
