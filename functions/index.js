@@ -685,7 +685,19 @@ async function isAuthorizedForEvent(eventId, password) {
   if (password === adminPassword.value()) return true;
 
   const pwdSnap = await admin.database().ref(`/passwords/${eventId}`).once("value");
-  return String(pwdSnap.val() || "") === password;
+  if (String(pwdSnap.val() || "") === password) return true;
+
+  // Also accept the event's own manager's login password - a manager should
+  // be able to manage their own events (approve blessings, trash, screen
+  // images) with the same password they log in with, without needing the
+  // separate per-event sub-admin password too.
+  const ownerSnap = await admin.database().ref(`/events/${eventId}/meta/ownerId`).once("value");
+  const ownerId = ownerSnap.val();
+  if (ownerId) {
+    const managerPwdSnap = await admin.database().ref(`/managers/${ownerId}/password`).once("value");
+    if (String(managerPwdSnap.val() || "") === password) return true;
+  }
+  return false;
 }
 
 function parseScreenImageDataUrl(dataUrl) {

@@ -1462,7 +1462,7 @@
     var countEl = document.getElementById('dashboard-screen-images-count');
     if (!grid) return;
 
-    var password = await getAdminCredential();
+    var password = sessionStorage.getItem('admin_access_password');
     if (!password) return;
 
     try {
@@ -1499,7 +1499,7 @@
       var btn = e.target.closest('.dashboard-screen-image-delete');
       if (!btn) return;
       var imageId = btn.getAttribute('data-id');
-      var password = await getAdminCredential();
+      var password = sessionStorage.getItem('admin_access_password');
       if (!password) return;
       btn.disabled = true;
       btn.textContent = 'מוחק...';
@@ -2126,7 +2126,7 @@
   }
 
   async function openScreenImagesManager(eventId) {
-    var password = await getAdminCredential();
+    var password = sessionStorage.getItem('admin_access_password');
     if (!password) return;
 
     Swal.fire({
