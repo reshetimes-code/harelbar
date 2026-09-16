@@ -883,7 +883,18 @@ exports.createManagerEvent = onRequest(
         status: "active",
         ownerId: managerId,
       };
-      if (notifyEmail) meta.notifyEmail = String(notifyEmail).slice(0, 199);
+      if (notifyEmail) {
+        meta.notifyEmail = String(notifyEmail).slice(0, 199);
+      } else {
+        // Default the new event's notification email to the manager's own
+        // login identifier when it's an email address (e.g. self-signed-up
+        // managers, whose username IS their email) - editable per-event later.
+        const managerUsernameSnap = await admin.database().ref(`/managers/${managerId}/username`).once("value");
+        const managerUsername = managerUsernameSnap.val();
+        if (typeof managerUsername === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(managerUsername)) {
+          meta.notifyEmail = managerUsername.slice(0, 199);
+        }
+      }
 
       const subAdminPassword = generateEventPassword();
       await admin.database().ref(`/events/${eventId}/meta`).set(meta);

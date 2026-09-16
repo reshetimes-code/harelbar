@@ -874,8 +874,8 @@
           '<h2 style="color:#fff;font-family:Assistant,sans-serif;font-weight:800;font-size:1.3rem;margin:0 0 16px;text-align:center;">מנהל אירוע חדש</h2>' +
           '<label style="color:var(--text-muted);font-size:0.85rem;">שם מנהל אירוע</label>' +
           '<input type="text" id="swal-mgr-name" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
-          '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש</label>' +
-          '<input type="text" id="swal-mgr-username" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
+          '<label style="color:var(--text-muted);font-size:0.85rem;">שם משתמש / אימייל</label>' +
+          '<input type="text" id="swal-mgr-username" dir="ltr" style="width:100%;padding:10px;margin:4px 0 12px;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
           '<label style="color:var(--text-muted);font-size:0.85rem;">סיסמה</label>' +
           '<input type="text" id="swal-mgr-password" style="width:100%;padding:10px;margin:4px 0;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;font-family:Assistant,sans-serif;font-size:1rem;background:rgba(255,255,255,0.08);color:#fff;">' +
           '</div>',
