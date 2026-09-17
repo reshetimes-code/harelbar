@@ -1402,35 +1402,51 @@ body {
    A projector/LED wall reporting a very wide aspect ratio (e.g. a ~10m x
    4-5m screen) leaves the normal stacked photo-on-top card mostly empty on
    the sides. Past 2:1 (wider than any standard 16:9 display), switch to a
-   side-by-side layout - photo filling the left column, name/text on the
-   right - instead of stretching the stacked layout sideways. A normal
-   1920x1080 screen (16:9, ~1.78:1) never crosses this threshold and keeps
-   the regular stacked layout untouched. Scoped to .screen-card so book.html,
+   side-by-side layout - photo on the left, name/text on the right - instead
+   of stretching the stacked layout sideways. A normal 1920x1080 screen
+   (16:9, ~1.78:1) never crosses this threshold and keeps the regular
+   stacked layout untouched. Scoped to .screen-card so book.html,
    slideshow.html and the guest preview are unaffected; only applies when
    there's a photo, since there's nothing to put side-by-side with text-only
-   blessings. */
+   blessings.
+
+   Grid column order below is (name, photo) rather than (photo, name) - in
+   this RTL page, grid-template-areas' first column renders on the right
+   and the second on the left, so writing the area names in that order is
+   what actually puts the photo on the left / text on the right visually
+   (verified against a live screenshot; writing it the "reads left to
+   right" way puts them backwards). */
 @media (min-aspect-ratio: 2/1) {
   .screen-card .blessing-card:not(.no-photo) .card-content {
     display: grid;
-    grid-template-columns: minmax(320px, 44%) 1fr;
-    grid-template-rows: auto auto 1fr;
+    grid-template-columns: 1fr minmax(300px, 42%);
+    grid-template-rows: auto auto auto;
     grid-template-areas:
-      "photo name"
-      "photo divider"
-      "photo text";
+      "name    photo"
+      "divider photo"
+      "text    photo";
     align-items: center;
+    align-content: center;
+    justify-content: center;
     column-gap: 5vw;
     max-width: 94vw;
     padding: 6vh 5vw;
   }
 
+  /* Sized as a true square (matching the guest's 1:1 crop) that fits
+     within whichever of the column's width or the card's height is
+     smaller, then centered in the leftover space on both axes - never
+     stretched into a rectangle. */
   .screen-card .blessing-card:not(.no-photo) .card-photo {
     grid-area: photo;
     width: 100%;
-    height: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    max-height: 100%;
     max-width: none;
-    max-height: 80vh;
-    margin-bottom: 0;
+    margin: 0;
+    align-self: center;
+    justify-self: center;
   }
 
   .screen-card .blessing-card:not(.no-photo) .card-floral-divider {
