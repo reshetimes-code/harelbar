@@ -324,6 +324,33 @@ function compressImage(file, maxWidth = 1800, quality = 0.87) {
   });
 }
 
+// Re-encode an already-compressed photoDataUrl much smaller (900px, quality
+// 0.6). Used as a retry fallback when a blessing write fails - a weak
+// connection can time out on a several-hundred-KB photo but sail through
+// with the payload cut down, so this gives the guest a second real chance
+// before they have to pick a different photo themselves.
+function shrinkPhotoDataUrl(dataUrl, maxWidth, quality) {
+  maxWidth = maxWidth || 900;
+  quality = quality || 0.6;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = function() {
+      const srcW = img.naturalWidth || img.width;
+      const srcH = img.naturalHeight || img.height;
+      const scale = Math.min(1, maxWidth / Math.max(srcW, srcH));
+      const width = Math.max(1, Math.round(srcW * scale));
+      const height = Math.max(1, Math.round(srcH * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(encodeJpegWithBudget(canvas, { quality: quality, maxChars: 3000000, minDimension: 300 }));
+    };
+    img.onerror = function() { reject(new Error('image_reload_failed')); };
+    img.src = dataUrl;
+  });
+}
+
 function getStorageUsage(eventId) {
   return getAllBlessings(eventId).then(blessings => {
     const json = JSON.stringify(blessings);

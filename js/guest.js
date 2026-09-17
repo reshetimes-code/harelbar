@@ -253,15 +253,27 @@
   // waiting, so a write rejected by the database (e.g. a photo that ended
   // up over the size limit) still showed "sent!" to the guest while nothing
   // was actually saved.
+  //
+  // On failure, retry once: if there's a photo, shrink it first (a slow/
+  // flaky connection is far more likely to choke on a big payload than a
+  // tiny one), then try the write again before giving up and alerting.
   async function sendBlessingAndShowSuccess() {
     try {
       await saveBlessing(eventId, currentBlessing);
-    } catch (saveErr) {
-      console.error('Save blessing failed:', saveErr);
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'שלחו ברכה';
-      alert('שליחת הברכה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב - אם יש תמונה, אפשר גם לנסות עם תמונה אחרת.');
-      return;
+    } catch (firstErr) {
+      console.error('Save blessing failed, retrying:', firstErr);
+      try {
+        if (currentBlessing.photoDataUrl) {
+          currentBlessing.photoDataUrl = await shrinkPhotoDataUrl(currentBlessing.photoDataUrl);
+        }
+        await saveBlessing(eventId, currentBlessing);
+      } catch (retryErr) {
+        console.error('Save blessing retry failed:', retryErr);
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'שלחו ברכה';
+        alert('שליחת הברכה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב - אם יש תמונה, אפשר גם לנסות עם תמונה אחרת.');
+        return;
+      }
     }
 
     previewModal.classList.remove('active');
