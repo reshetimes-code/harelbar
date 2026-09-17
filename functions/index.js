@@ -1,5 +1,6 @@
 const { onValueCreated } = require("firebase-functions/v2/database");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onMessagePublished } = require("firebase-functions/v2/pubsub");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const { GoogleGenAI } = require("@google/genai");
@@ -8,6 +9,8 @@ const { defineSecret } = require("firebase-functions/params");
 admin.initializeApp();
 
 const ADMIN_EMAIL = "orenshp77@gmail.com";
+const GEMINI_BILLING_URL = "https://aistudio.google.com/projects?project=harelbar-ca7dd";
+const GEMINI_BUDGET_DISPLAY_NAME = "Gemini AI Credit Alert - HCHC";
 const SCREEN_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 const SCREEN_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
@@ -1325,6 +1328,70 @@ exports.updateEventManager = onRequest(
       console.error("updateEventManager error:", error);
       res.status(500).json({ ok: false, error: "server_error" });
     }
+  }
+);
+
+// Fires from the Cloud Billing budget "Gemini AI Credit Alert - HCHC"
+// (billingAccounts/013DBB-E7007A-FC6FD9/budgets/21cd90aa-3a09-48ac-8d57-b0be19a75425,
+// a ₪100/month budget with a 90% threshold, i.e. ~₪10 left) via its Pub/Sub
+// notification topic "gemini-budget-alerts". This is the same failure mode
+// that silently drained the Gemini quota and forced every blessing to
+// "pending" on 2026-09-16/17 - this alert exists so the credit gets topped
+// up before it actually runs out next time, instead of finding out from a
+// stuck event mid-celebration.
+exports.onGeminiBudgetAlert = onMessagePublished(
+  { topic: "gemini-budget-alerts", region: "us-central1", secrets: [gmailAppPassword] },
+  async (event) => {
+    const data = event.data.message.json;
+    if (!data || data.budgetDisplayName !== GEMINI_BUDGET_DISPLAY_NAME) return;
+    // alertThresholdExceeded is only present once actual spend has crossed
+    // one of the budget's configured thresholds - absent on routine
+    // "still under budget" notifications the budget also publishes.
+    if (typeof data.alertThresholdExceeded !== "number") return;
+
+    const spent = Number(data.costAmount || 0);
+    const budget = Number(data.budgetAmount || 0);
+    const currency = data.currencyCode || "ILS";
+    const remaining = Math.max(0, budget - spent);
+    const period = (data.costIntervalStart || new Date().toISOString()).slice(0, 7); // YYYY-MM
+
+    // De-dupe: Pub/Sub can redeliver, and the budget itself can re-notify
+    // for the same crossed threshold - only actually send once per
+    // month+threshold.
+    const dedupeKey = period + "_" + Math.round(data.alertThresholdExceeded * 100);
+    const dedupeRef = admin.database().ref(`/systemAlerts/geminiBudget/${dedupeKey}`);
+    const already = await dedupeRef.once("value");
+    if (already.exists()) return;
+    await dedupeRef.set({ sentAt: new Date().toISOString(), spent, budget, remaining });
+
+    const mailOptions = {
+      from: `"HCHC מערכת" <orenshp77@gmail.com>`,
+      to: ADMIN_EMAIL,
+      subject: "הסתיים שירות הAI בקרוב בHCHC.CO.IL חובה לעדכן תשלום",
+      html: `
+        <div dir="rtl" style="font-family:Arial,sans-serif; max-width:480px; margin:0 auto;">
+          <div style="background:#2f9e44; border-radius:14px 14px 0 0; padding:24px; text-align:center;">
+            <div style="width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,0.2); color:#fff; display:flex; align-items:center; justify-content:center; font-size:26px; margin:0 auto 14px;">⚠️</div>
+            <h1 style="color:#fff; margin:0 0 6px; font-size:20px;">יתרת ה-AI עומדת להיגמר</h1>
+            <p style="color:rgba(255,255,255,0.85); margin:0; font-size:14px;">בדיקת התוכן האוטומטית (Gemini) ב-HCHC.CO.IL עלולה להיפסק בקרוב - יש לחדש תשלום</p>
+          </div>
+          <div style="background:#eafbee; padding:20px; border-radius:0 0 14px 14px;">
+            <table style="width:100%; border-collapse:collapse; font-size:14px; color:#1b4332;">
+              <tr><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); color:#5c8a6a;">פרויקט</td><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); text-align:left; font-weight:700;">HCHC.CO.IL</td></tr>
+              <tr><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); color:#5c8a6a;">תקציב חודשי</td><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); text-align:left; font-weight:700;">₪${budget.toFixed(2)}</td></tr>
+              <tr><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); color:#5c8a6a;">נוצל עד כה</td><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); text-align:left; font-weight:700;">₪${spent.toFixed(2)} (${Math.round(data.alertThresholdExceeded * 100)}%)</td></tr>
+              <tr><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); color:#5c8a6a;">נותר משוער</td><td style="padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); text-align:left; font-weight:700; color:#c92a2a;">₪${remaining.toFixed(2)}</td></tr>
+              <tr><td style="padding:8px 0; color:#5c8a6a;">תאריך</td><td style="padding:8px 0; text-align:left; font-weight:700;">${new Date().toLocaleString("he-IL")}</td></tr>
+            </table>
+            <div style="text-align:center; margin-top:20px;">
+              <a href="${GEMINI_BILLING_URL}" style="display:inline-block; padding:12px 32px; background:#fff; color:#2f9e44; text-decoration:none; border-radius:8px; font-weight:800; border:2px solid #2f9e44;">חידוש תשלום ל-AI Studio</a>
+            </div>
+          </div>
+        </div>
+      `,
+    };
+    await getTransporter().sendMail(mailOptions);
+    console.log("Gemini budget alert email sent:", dedupeKey, spent, "/", budget, currency);
   }
 );
 
