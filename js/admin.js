@@ -1521,6 +1521,29 @@
     });
   }
 
+  // Delete all screen images at once
+  var dashboardScreenImagesClearBtn = document.getElementById('dashboard-screen-images-clear-btn');
+  if (dashboardScreenImagesClearBtn) {
+    dashboardScreenImagesClearBtn.addEventListener('click', function() {
+      if (!currentEventId) return;
+      showConfirm('מחיקת כל תמונות המסך', 'כל תמונות המילוי יימחקו לצמיתות. לא ניתן לשחזר.', function() {
+        var password = localStorage.getItem('admin_access_password');
+        if (!password) return;
+        dashboardScreenImagesClearBtn.disabled = true;
+        callScreenImagesApi({ action: 'clear', eventId: currentEventId, password: password, managerId: isManager ? managerId : undefined })
+          .then(function() {
+            loadDashboardScreenImages(currentEventId);
+          })
+          .catch(function(err) {
+            showScreenImageError('מחיקת התמונות נכשלה: ' + friendlyErrorText(err));
+          })
+          .finally(function() {
+            dashboardScreenImagesClearBtn.disabled = false;
+          });
+      });
+    });
+  }
+
   // Back to events
   document.getElementById('back-to-events').addEventListener('click', function() {
     showEventsView();
@@ -2234,49 +2257,72 @@
             return;
           }
 
+          // Upload several photos in parallel (not one-by-one) so a big batch
+          // finishes much faster - each batch of CONCURRENCY files runs at
+          // once, batches run one after another so progress stays reportable.
+          var CONCURRENCY = 4;
           try {
             fileInput.disabled = true;
             uploadLoader.style.display = 'block';
             var latestImages = images;
-            var skipped = [];
-            for (var i = 0; i < files.length; i++) {
-              count.textContent = 'מכווץ ומעלה תמונה ' + (i + 1) + ' מתוך ' + files.length + '...';
+            var tooLargeNames = [];
+            var otherErr = null;
+            var uploadedCount = 0;
+
+            for (var i = 0; i < files.length; i += CONCURRENCY) {
+              var batch = files.slice(i, i + CONCURRENCY);
+              count.textContent = 'מעלה תמונות ' + (i + 1) + '-' + Math.min(i + batch.length, files.length) + ' מתוך ' + files.length + '...';
               status.textContent = '';
-              var file = files[i];
-              var dataUrl;
-              try {
-                // Auto-resize/compress every image client-side so a heavy photo
-                // from a professional camera still looks sharp on screen but
-                // stays a reasonable size to upload and store.
-                dataUrl = await compressImageForScreen(file);
-              } catch (compressErr) {
-                skipped.push(file.name);
-                continue;
-              }
-              var result = await callScreenImagesApi({
-                action: 'upload',
-                eventId: eventId,
-                password: password,
-                managerId: isManager ? managerId : undefined,
-                dataUrl: dataUrl,
-                fileName: file.name
+
+              var batchResults = await Promise.all(batch.map(async function(file) {
+                var dataUrl;
+                try {
+                  // Auto-resize/compress every image client-side so a heavy photo
+                  // from a professional camera still looks sharp on screen but
+                  // stays a reasonable size to upload and store.
+                  dataUrl = await compressImageForScreen(file);
+                } catch (compressErr) {
+                  return { ok: false, tooLarge: true, name: file.name };
+                }
+                try {
+                  var result = await callScreenImagesApi({
+                    action: 'upload',
+                    eventId: eventId,
+                    password: password,
+                    managerId: isManager ? managerId : undefined,
+                    dataUrl: dataUrl,
+                    fileName: file.name
+                  });
+                  return { ok: true, images: result.images };
+                } catch (uploadErr) {
+                  if (uploadErr && uploadErr.code === 'image_too_large') return { ok: false, tooLarge: true, name: file.name };
+                  return { ok: false, tooLarge: false, name: file.name, err: uploadErr };
+                }
+              }));
+
+              batchResults.forEach(function(r) {
+                if (r.ok) {
+                  uploadedCount++;
+                  if (r.images) latestImages = r.images;
+                } else if (r.tooLarge) {
+                  tooLargeNames.push(r.name);
+                } else if (!otherErr) {
+                  otherErr = r.err;
+                }
               });
-              latestImages = result.images || latestImages;
             }
-            var uploadedCount = files.length - skipped.length;
+
             refresh(latestImages, uploadedCount === 0 ? '' : (uploadedCount === 1 ? 'התמונה הועלתה בהצלחה' : uploadedCount + ' תמונות הועלו בהצלחה'), uploadedCount > 0);
             fileInput.value = '';
-            if (skipped.length) {
-              await showScreenImageError('התמונות הבאות לא הועלו כי הן גדולות מדי גם לאחר דחיסה: ' + skipped.join(', '));
+            if (tooLargeNames.length) {
+              await showScreenImageError('התמונות הבאות לא הועלו כי הן גדולות מדי גם לאחר דחיסה: ' + tooLargeNames.join(', '));
+            } else if (otherErr) {
+              await showScreenImageError('העלאת חלק מהתמונות נכשלה: ' + friendlyErrorText(otherErr));
             }
           } catch (err) {
             fileInput.value = '';
             count.textContent = images.length + ' תמונות';
-            if (err.code === 'image_too_large') {
-              await showImageTooLargeAlert();
-            } else {
-              await showScreenImageError('העלאת התמונה נכשלה: ' + friendlyErrorText(err));
-            }
+            await showScreenImageError('העלאת התמונה נכשלה: ' + friendlyErrorText(err));
           } finally {
             fileInput.disabled = false;
             uploadLoader.style.display = 'none';

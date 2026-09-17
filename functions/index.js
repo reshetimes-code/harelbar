@@ -293,7 +293,7 @@ exports.screenImages = onRequest(
 
     const { action, eventId, password, dataUrl, imageId, managerId } = req.body || {};
 
-    if (!eventId || !/^[a-z0-9]{4,20}$/.test(eventId) || !["list", "upload", "delete"].includes(action)) {
+    if (!eventId || !/^[a-z0-9]{4,20}$/.test(eventId) || !["list", "upload", "delete", "clear"].includes(action)) {
       res.status(400).json({ ok: false, error: "invalid_request" });
       return;
     }
@@ -336,6 +336,12 @@ exports.screenImages = onRequest(
 
         await imagesRef.child(imageId).remove();
         res.json({ ok: true, images: await listScreenImages(imagesRef) });
+        return;
+      }
+
+      if (action === "clear") {
+        await imagesRef.remove();
+        res.json({ ok: true, images: [] });
         return;
       }
 
