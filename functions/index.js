@@ -131,13 +131,18 @@ REJECTED - אם הברכה פוגענית (ואז הוסף סיבה קצרה)`;
     console.log("Gemini response:", responseText);
 
     if (responseText.startsWith("REJECTED")) {
-      return { approved: false, reason: responseText.replace("REJECTED", "").trim().replace(/^-\s*/, "") };
+      return { approved: false, reason: responseText.replace("REJECTED", "").trim().replace(/^-\s*/, ""), aiChecked: true };
     }
-    return { approved: true, reason: "" };
+    return { approved: true, reason: "", aiChecked: true };
   } catch (error) {
     console.error("Gemini error:", error);
-    // If AI fails, let it through for manual review
-    return { approved: true, reason: "" };
+    // The AI never actually ran, so this is NOT a real approval - callers
+    // must route this to a human (pending + email) even in auto mode,
+    // never straight to "approved". Previously this returned approved:true
+    // indistinguishable from a real AI pass, so a Gemini outage combined
+    // with auto mode published completely unmoderated content straight to
+    // the live screen.
+    return { approved: true, reason: "", aiChecked: false };
   }
 }
 
@@ -193,7 +198,11 @@ exports.onNewBlessing = onValueCreated(
     // Content is OK - check if auto mode. In auto mode the AI content check
     // above (including its image analysis) is trusted for photos too, so a
     // photo blessing no longer waits on a human when auto mode is on.
-    const isAutoMode = meta.autoMode === true;
+    // Only take this path when the AI actually ran (check.aiChecked) - if
+    // Gemini errored out, check.approved is just a fail-open placeholder,
+    // not a real pass, so it must fall through to the manual/pending path
+    // below and wait for a human even when auto mode is on.
+    const isAutoMode = meta.autoMode === true && check.aiChecked;
 
     if (isAutoMode) {
       // Auto mode: approve directly, no email

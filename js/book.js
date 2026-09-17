@@ -109,7 +109,10 @@
       document.title = 'ספר הברכות - ' + celebrantName;
     }
 
-    const blessings = await getAllBlessings(eventId);
+    // Only approved blessings belong in the public book - a raw write is
+    // readable here before the moderation Cloud Function has run, so an
+    // unfiltered read could show unreviewed or rejected content.
+    const blessings = (await getAllBlessings(eventId)).filter(function(b) { return b.status === 'approved'; });
 
     if (blessings.length === 0) {
       cardsGrid.style.display = 'none';
@@ -202,7 +205,7 @@
     await paintFrame();
 
     try {
-      const blessings = await getAllBlessings(eventId);
+      const blessings = (await getAllBlessings(eventId)).filter(function(b) { return b.status === 'approved'; });
       if (blessings.length === 0) return;
 
       if (!window.jspdf || !window.jspdf.jsPDF) {

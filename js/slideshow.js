@@ -71,7 +71,13 @@
   let firstLoad = true;
   let knownIds = new Set();
 
-  onBlessingsChanged(eventId, function(blessings) {
+  onBlessingsChanged(eventId, function(allBlessings) {
+    // Only show blessings the AI/admin has actually approved - a raw write
+    // is visible here the instant a guest submits, before the moderation
+    // Cloud Function has even run, so showing everything would put
+    // unreviewed (and potentially rejected) content on screen. Same filter
+    // screen.html already applies to the live event display.
+    var blessings = allBlessings.filter(function(b) { return b.status === 'approved'; });
     updateCount(blessings.length);
 
     if (blessings.length === 0) {
