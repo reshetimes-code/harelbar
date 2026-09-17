@@ -165,56 +165,72 @@
         #000;
     }
 
+    /* Sized with vh-based clamp()s (not fixed rem/px margins) so the whole
+       badge+title+QR+caption stack always shrinks to fit a short viewport -
+       on a very wide/short venue screen the old fixed sizes (3.4rem title,
+       36px+24px margins, 44vh QR box) added up to more than 100vh and the
+       centered flex box clipped the badge on top and the caption below
+       instead of shrinking. Using gap instead of margins and clamping every
+       size to the viewport height means nothing gets cut off regardless of
+       how short the screen is. */
     .qr-slide-inner {
       position: relative;
       z-index: 1;
       text-align: center;
       padding: 0 5vw;
+      max-height: 96vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(8px, 2.2vh, 24px);
     }
 
     .qr-slide-badge {
       display: inline-block;
-      padding: 8px 32px;
+      padding: clamp(4px, 1vh, 8px) 32px;
       border: 1px solid rgba(184,149,62,0.3);
       border-radius: 100px;
       font-family: 'Assistant', sans-serif;
-      font-size: 1.3rem;
+      font-size: clamp(0.9rem, 2.6vh, 1.3rem);
       font-weight: 600;
       color: var(--gold-light, #e8c88a);
-      margin-bottom: 24px;
+      flex-shrink: 0;
     }
 
     .qr-slide-title {
       font-family: 'Assistant', sans-serif;
       font-weight: 800;
-      font-size: 3.4rem;
+      font-size: clamp(1.5rem, 6vh, 3.4rem);
       color: var(--gold-light, #e8c88a);
-      margin: 0 0 36px;
+      margin: 0;
       text-shadow: 0 2px 24px rgba(184,149,62,0.35);
+      flex-shrink: 0;
     }
 
     .qr-slide-box {
       background: #fff;
       display: inline-block;
-      padding: 28px;
+      padding: clamp(10px, 2.6vh, 28px);
       border-radius: 28px;
       box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 120px rgba(184,149,62,0.15);
       animation: qr-slide-pulse 2.4s ease-in-out infinite;
+      flex-shrink: 1;
+      min-height: 0;
     }
 
     .qr-slide-img {
-      width: 44vh;
-      height: 44vh;
-      max-width: 520px;
-      max-height: 520px;
+      width: min(44vh, 40vw, 520px);
+      height: min(44vh, 40vw, 520px);
       display: block;
     }
 
     .qr-slide-sub {
       font-family: 'Assistant', sans-serif;
       color: rgba(255,255,255,0.65);
-      font-size: 1.5rem;
-      margin-top: 32px;
+      font-size: clamp(0.95rem, 2.8vh, 1.5rem);
+      margin: 0;
+      flex-shrink: 0;
     }
 
     @keyframes qr-slide-pulse {
