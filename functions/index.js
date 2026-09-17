@@ -42,7 +42,7 @@ function sanitizeRateLimitKey(raw) {
   return String(raw).replace(/[.#$[\]/]/g, "_").slice(0, 100);
 }
 
-async function checkRateLimit(name, req) {
+async function checkRateLimit(name, req, maxAttempts) {
   const ip = sanitizeRateLimitKey(getClientIp(req));
   const ref = admin.database().ref(`/rateLimits/${name}_${ip}`);
   const now = Date.now();
@@ -53,7 +53,7 @@ async function checkRateLimit(name, req) {
     return { windowStart: current.windowStart, count: (current.count || 0) + 1 };
   });
   const data = result.committed && result.snapshot.exists() ? result.snapshot.val() : null;
-  return !data || data.count <= RATE_LIMIT_MAX_ATTEMPTS;
+  return !data || data.count <= (maxAttempts || RATE_LIMIT_MAX_ATTEMPTS);
 }
 
 function getTransporter() {
@@ -284,7 +284,9 @@ exports.screenImages = onRequest(
       return;
     }
 
-    if (!(await checkRateLimit("screenImages", req))) {
+    // Higher ceiling than the default - a legitimate bulk photo upload makes
+    // one request per file and can easily pass 15 in 5 minutes on its own.
+    if (!(await checkRateLimit("screenImages", req, 100))) {
       res.status(429).json({ ok: false, error: "rate_limited" });
       return;
     }

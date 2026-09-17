@@ -524,7 +524,7 @@
             loadEvents();
           }).catch(function(err) {
             console.error('Delete event failed:', err);
-            Swal.fire({ text: 'מחיקת האירוע נכשלה: ' + (err && err.message || 'שגיאה'), icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
+            Swal.fire({ text: 'מחיקת האירוע נכשלה: ' + friendlyErrorText(err), icon: 'error', confirmButtonColor: '#b8953e', background: '#0c1425', color: '#fff' });
           });
       });
       return;
@@ -1516,7 +1516,7 @@
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'מחק';
-        showScreenImageError('מחיקת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
+        showScreenImageError('מחיקת התמונה נכשלה: ' + friendlyErrorText(err));
       }
     });
   }
@@ -1960,6 +1960,16 @@
     });
   }
 
+  // Translates a raw server error code into readable Hebrew instead of
+  // showing the code verbatim (e.g. "rate_limited") to the user.
+  function friendlyErrorText(err) {
+    var code = err && (err.code || err.message) || '';
+    if (code === 'rate_limited') return 'יותר מדי בקשות ברצף - חכו כדקה ונסו שוב';
+    if (code === 'unauthorized') return 'אין הרשאה - נסו להתחבר מחדש';
+    if (code === 'image_too_large') return 'התמונה גדולה מדי';
+    return code || 'לא ידועה';
+  }
+
   function showScreenImageError(message) {
     return Swal.fire({
       icon: 'error',
@@ -2155,7 +2165,7 @@
       // Never clear a cached password just because one call failed - it may
       // be a transient network hiccup, and wiping it forces a re-login for
       // no reason. Show the real server reason so this is diagnosable.
-      await showScreenImageError('שגיאה בטעינת התמונות: ' + (err && (err.code || err.message) || 'לא ידועה') + ' - נסו שוב');
+      await showScreenImageError('שגיאה בטעינת התמונות: ' + friendlyErrorText(err) + ' - נסו שוב');
       return;
     }
 
@@ -2265,7 +2275,7 @@
             if (err.code === 'image_too_large') {
               await showImageTooLargeAlert();
             } else {
-              await showScreenImageError('העלאת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
+              await showScreenImageError('העלאת התמונה נכשלה: ' + friendlyErrorText(err));
             }
           } finally {
             fileInput.disabled = false;
@@ -2291,7 +2301,7 @@
           } catch (err) {
             btn.disabled = false;
             btn.textContent = 'מחק';
-            await showScreenImageError('מחיקת התמונה נכשלה: ' + (err && (err.code || err.message) || 'לא ידועה'));
+            await showScreenImageError('מחיקת התמונה נכשלה: ' + friendlyErrorText(err));
           }
         });
       }
